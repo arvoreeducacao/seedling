@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "name": "Árvore engineering prep",
+  "opensDaysBefore": 7,
+  "howWeWork": "We are product engineers. Small teams own a problem end to end, from talking to schools and readers to shipping and watching the numbers move.\n\nAgents do most of the typing. Our job is the rest:\n\n- **Shape before building.** We decide how much a problem is worth (the appetite) and sketch the solution before anyone writes code.\n- **Steer, don't type.** We give agents context through skills, MCP servers and CLAUDE.md, split work across parallel agents, and push back when they drift.\n- **Verify everything.** We read the diff, run the tests and check the result in the real product. An agent's confidence is not evidence.\n\nIn the interview we want to see that loop: how you frame the problem, how you drive Claude Code, and how you check what it did.",
+  "sections": [
+    {
+      "title": "How we shape and bet on work",
+      "body": "We plan in cycles with a fixed appetite instead of estimates. You don't need to memorize the book. Read the first chapters and notice how a problem gets shaped before it gets built.",
+      "links": [
+        {
+          "title": "Shape Up",
+          "url": "https://basecamp.com/shapeup",
+          "why": "How we decide what to build: set an appetite, shape a rough solution, cut the rabbit holes, then commit. It's why the interview has a fixed time box."
+        }
+      ]
+    },
+    {
+      "title": "Agents in the loop",
+      "body": "Two short reads on what engineering looks like when agents write the code. Both match how our teams work day to day.",
+      "links": [
+        {
+          "title": "Loop engineering",
+          "url": "https://addyosmani.com/blog/loop-engineering/",
+          "why": "Building systems that find, assign, check and record agent work, while the engineer stays responsible for verifying it. That last part is what we watch for."
+        },
+        {
+          "title": "Harness engineering",
+          "url": "https://openai.com/index/harness-engineering/",
+          "why": "Humans steer, agents execute: the engineer's work moves to designing the environment, the context and the feedback loops. Our repos are built around that idea."
+        }
+      ]
+    },
+    {
+      "title": "Our own tooling",
+      "body": "We build and open source the tools that give our agents context. Skim them to see how we wire agents into real systems. You can bring similar tools to the interview.",
+      "links": [
+        {
+          "title": "arvore-mcp-servers",
+          "url": "https://github.com/arvoreeducacao/arvore-mcp-servers",
+          "why": "The MCP servers our agents use to reach databases, analytics, feature flags and chat. A concrete picture of the context an agent gets at Árvore."
+        },
+        {
+          "title": "arvore-pi-extensions",
+          "url": "https://github.com/arvoreeducacao/arvore-pi-extensions",
+          "why": "Extensions for the Pi coding agent: worktrees, CI watching, shared memory. Shows how we shape our day-to-day agent workflow."
+        },
+        {
+          "title": "Repo Hub",
+          "url": "https://hub.arvore.com.br/",
+          "why": "One config that describes our repos, tools and workflow so every agent follows the same pipeline across many repositories. How we keep agents consistent."
+        }
+      ]
+    },
+    {
+      "title": "Get fluent with Claude Code",
+      "body": "The interview runs on Claude Code in a terminal. If you use another agent day to day, spend an hour here first: plan mode, CLAUDE.md, skills, subagents and MCP will all come up.",
+      "links": [
+        {
+          "title": "Claude Code on Claude Academy",
+          "url": "https://academy.claude.com/products/code",
+          "why": "Free short courses on the exact tool you'll drive in the sandbox, from the first session to context files and MCP."
+        }
+      ]
+    },
+    {
+      "title": "Product engineers, not ticket takers",
+      "body": "We hire engineers who care about the outcome for the user more than the implementation. During the interview, tell us what you would ask the user or measure, not only what you would code.",
+      "links": [
+        {
+          "title": "What is a product engineer?",
+          "url": "https://posthog.com/product-engineer/what-is-a-product-engineer",
+          "why": "The role we hire for: full stack, close to users, judged by impact. It explains why the rubric weighs judgment over code volume."
+        }
+      ]
+    }
+  ],
+  "practice": {
+    "mode": "playground",
+    "budgetUsd": 1,
+    "minutes": 20
+  },
+  "bring": {
+    "skills": true,
+    "mcpServers": true,
+    "claudeMd": true
+  }
+}

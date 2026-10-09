@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `defense_questions` text;

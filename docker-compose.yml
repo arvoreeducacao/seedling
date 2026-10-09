@@ -1,0 +1,24 @@
+services:
+  seedling:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SEEDLING_DATA_DIR: /data
+      SEEDLING_SANDBOX_HOST_DATA_DIR: ${SEEDLING_HOST_DATA_DIR:-/srv/seedling}
+      SEEDLING_SANDBOX_NETWORK: seedling-sandbox
+      SEEDLING_SANDBOX_GATEWAY_URL: http://seedling:3100
+    ports:
+      - "127.0.0.1:3100:3100"
+      - "127.0.0.1:3101:3101"
+    volumes:
+      - ${SEEDLING_HOST_DATA_DIR:-/srv/seedling}:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - default
+      - sandbox
+
+networks:
+  sandbox:
+    name: seedling-sandbox
+    internal: true

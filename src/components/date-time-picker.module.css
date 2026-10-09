@@ -1,0 +1,277 @@
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trigger {
+  width: 260px;
+  max-width: 100%;
+}
+
+.icon {
+  flex: none;
+  color: var(--text-3);
+}
+
+.zone {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.popover {
+  position: absolute;
+  z-index: 60;
+  top: 42px;
+  left: 0;
+  width: 452px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 24px 48px rgba(5, 6, 26, 0.55);
+  animation: picker-in 0.16s var(--ease) both;
+}
+
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+}
+
+.calendar {
+  min-width: 0;
+}
+
+.monthBar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.month {
+  flex: 1;
+  padding-left: 6px;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.today {
+  margin-right: 4px;
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.weekday {
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.day {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-body);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.day:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.day:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25);
+}
+
+.day[data-outside] {
+  color: var(--text-3);
+}
+
+.day[data-today] {
+  border-color: var(--border-strong);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.day[data-suggested] {
+  background: var(--accent-soft);
+}
+
+.day[data-selected] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.day:disabled {
+  color: var(--text-3);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.timePane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+.timeInput {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+}
+
+.timeInput input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.times {
+  height: 248px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  outline: none;
+}
+
+.times:focus-visible {
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+.slot {
+  flex: none;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.slot:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.slot[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.footZone {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+@media (max-width: 520px) {
+  .popover {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    width: auto;
+  }
+
+  .panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .timePane {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .times {
+    height: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .slot {
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    animation: none;
+  }
+
+  .day {
+    transition: none;
+  }
+}
