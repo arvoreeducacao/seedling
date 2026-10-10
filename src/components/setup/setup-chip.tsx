@@ -5,9 +5,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { FileText, Lightning, Plug, Toolbox } from "@phosphor-icons/react";
 import type { SetupView } from "@/lib/setup/store";
 import ui from "@/components/workspace/ui.module.css";
+import { useI18n } from "@/components/i18n";
+import { hasKey } from "@/lib/i18n";
 import css from "./setup.module.css";
 
 export function SetupChip({ view }: { view: SetupView }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -41,14 +44,14 @@ export function SetupChip({ view }: { view: SetupView }) {
           setOpen((v) => !v);
         }}
         aria-expanded={open}
-        title="The skills, CLAUDE.md and MCP servers the candidate brought"
+        title={t("setup.chip.title")}
       >
-        <Toolbox size={12} /> Their setup <span className={ui.mono} style={{ color: "var(--w-fg-4)" }}>{count}</span>
+        <Toolbox size={12} /> {t("setup.chip.label")} <span className={ui.mono} style={{ color: "var(--w-fg-4)" }}>{count}</span>
       </button>
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }} className={css.popover} style={anchor ? { top: anchor.top, right: anchor.right, width: 360 } : undefined} role="dialog" aria-label="Candidate setup">
-            <div className={ui.sectionLabel}>Brought by the candidate</div>
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.14 }} className={css.popover} style={anchor ? { top: anchor.top, right: anchor.right, width: 360 } : undefined} role="dialog" aria-label={t("setup.chip.dialog")}>
+            <div className={ui.sectionLabel}>{t("setup.chip.head")}</div>
             {view.skills.map((s) => (
               <div key={`s-${s.name}`} className={css.popoverRow}><Lightning size={13} /><span><span className={ui.mono}>{s.name}</span>{s.description ? <span className={ui.faint}> · {s.description}</span> : null}</span></div>
             ))}
@@ -56,7 +59,7 @@ export function SetupChip({ view }: { view: SetupView }) {
             {view.mcpServers.map((m) => (
               <div key={`m-${m.name}`} className={css.popoverRow}><Plug size={13} /><span style={{ minWidth: 0, overflowWrap: "anywhere" }}><span className={ui.mono}>{m.name}</span> <span className={ui.faint}>{m.type} · {m.url}{m.headers.length ? ` · ${m.headers.map((h) => `${h}: ••••••`).join(", ")}` : ""}</span></span></div>
             ))}
-            {view.lastInstall?.error && <div className={ui.faint} style={{ color: "var(--w-warn)" }}>{view.lastInstall.error}</div>}
+            {view.lastInstall?.error && <div className={ui.faint} style={{ color: "var(--w-warn)" }}>{hasKey(view.lastInstall.error) ? t(view.lastInstall.error) : view.lastInstall.error}</div>}
           </motion.div>
         )}
       </AnimatePresence>

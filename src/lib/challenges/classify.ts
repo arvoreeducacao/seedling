@@ -60,35 +60,39 @@ export function trapsFrom(rubric: string | null) {
   return traps;
 }
 
-const secretPatterns: [string, RegExp][] = [
-  ["Anthropic key", /sk-ant-[a-zA-Z0-9_-]{20,}/],
-  ["OpenAI key", /sk-(proj-)?[a-zA-Z0-9]{32,}/],
-  ["AWS key", /AKIA[0-9A-Z]{16}/],
-  ["GitHub token", /gh[pousr]_[A-Za-z0-9]{36,}/],
-  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
-  ["Slack token", /xox[baprs]-[A-Za-z0-9-]{10,}/],
+export type SecretKind = "env" | "anthropic" | "openai" | "aws" | "github" | "privateKey" | "slack";
+export type SecretFinding = { kind: SecretKind; path: string };
+export type StatementLeak = { line: number; path: string };
+
+const secretPatterns: [SecretKind, RegExp][] = [
+  ["anthropic", /sk-ant-[a-zA-Z0-9_-]{20,}/],
+  ["openai", /sk-(proj-)?[a-zA-Z0-9]{32,}/],
+  ["aws", /AKIA[0-9A-Z]{16}/],
+  ["github", /gh[pousr]_[A-Za-z0-9]{36,}/],
+  ["privateKey", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["slack", /xox[baprs]-[A-Za-z0-9-]{10,}/],
 ];
 
-export function findSecrets(files: { path: string; content: string }[]) {
-  const found: string[] = [];
+export function findSecrets(files: { path: string; content: string }[]): SecretFinding[] {
+  const found: SecretFinding[] = [];
   for (const file of files) {
-    if (/(^|\/)\.env(\.|$)/.test(file.path) && !/\.example$/.test(file.path)) found.push(`${file.path}: .env file`);
-    for (const [label, pattern] of secretPatterns) {
-      if (pattern.test(file.content)) found.push(`${file.path}: ${label}`);
+    if (/(^|\/)\.env(\.|$)/.test(file.path) && !/\.example$/.test(file.path)) found.push({ kind: "env", path: file.path });
+    for (const [kind, pattern] of secretPatterns) {
+      if (pattern.test(file.content)) found.push({ kind, path: file.path });
     }
   }
   return found;
 }
 
-export function statementLeaks(statementText: string, privatePaths: string[], visiblePaths: string[] = []) {
+export function statementLeaks(statementText: string, privatePaths: string[], visiblePaths: string[] = []): StatementLeak[] {
   const lines = statementText.split("\n");
-  const leaks: string[] = [];
+  const leaks: StatementLeak[] = [];
   const visible = new Set(visiblePaths);
   for (const path of privatePaths) {
     const name = path.split("/").slice(-2).join("/");
     const collides = [...visible].some((v) => v === name || v.endsWith(`/${name}`));
     const index = lines.findIndex((l) => l.includes(path) || (!collides && name.length > 6 && l.includes(name)));
-    if (index >= 0) leaks.push(`line ${index + 1} mentions ${path}`);
+    if (index >= 0) leaks.push({ line: index + 1, path });
   }
   return leaks;
 }

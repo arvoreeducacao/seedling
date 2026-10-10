@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, ready, schema } from "@/lib/db";
+import { AppError } from "@/lib/i18n";
 import { newId } from "@/lib/crypto";
 import { dataPath, env } from "@/lib/env";
 import { sandbox } from "@/lib/sandbox";
@@ -48,13 +49,16 @@ function sh(...lines: string[]) {
 
 async function container(session: Session) {
   const id = await sandbox().find(session.id);
-  if (!id) throw new Error("the sandbox is not running");
+  if (!id) throw new AppError("workspace.sandboxNotRunning");
   return id;
 }
 
 async function run(containerId: string, command: string, timeoutMs = 60_000) {
   const result = await sandbox().exec(containerId, command, timeoutMs);
-  if (result.exitCode !== 0) throw new Error(result.output.trim().split("\n").slice(-3).join(" ") || "git failed");
+  if (result.exitCode !== 0) {
+    const tail = result.output.trim().split("\n").slice(-3).join(" ");
+    throw tail ? new Error(tail) : new AppError("workspace.gitFailed");
+  }
   return result.output;
 }
 
@@ -89,7 +93,7 @@ export async function isOpenAgent(session: Session, key: string) {
 export async function createAgent(session: Session, name?: unknown) {
   const rows = await agentRows(session.id, session.currentIndex);
   const open = rows.filter((r) => !r.closedAt).length + 1;
-  if (open >= env.sandbox.maxAgents) throw new Error(`You can run up to ${env.sandbox.maxAgents} agents at once. Close one first.`);
+  if (open >= env.sandbox.maxAgents) throw new AppError("workspace.agentLimit", { max: env.sandbox.maxAgents });
   const number = (await agentRows(session.id)).length + 2;
   const key = `agent-${number}`;
   const containerId = await container(session);
@@ -111,7 +115,7 @@ export async function createAgent(session: Session, name?: unknown) {
 
 async function findRow(session: Session, key: string) {
   const row = (await agentRows(session.id, session.currentIndex)).find((r) => r.key === key);
-  if (!row) throw new Error("unknown agent");
+  if (!row) throw new AppError("workspace.unknownAgent");
   return row;
 }
 
@@ -138,7 +142,7 @@ function summary(changes: FileChange[]) {
 
 export async function mergeAgent(session: Session, key: string): Promise<{ ok: true; files: number } | { ok: false; conflicts: string[]; message: string }> {
   const row = await findRow(session, key);
-  if (row.closedAt) throw new Error("this agent is closed");
+  if (row.closedAt) throw new AppError("workspace.agentClosed");
   const changes = await agentChanges(session, key);
   const containerId = await container(session);
   await run(containerId, sh(`cd /agents/${key}`, "git add -A", `(git diff --cached --quiet || git commit -q -m 'Work from ${key}')`));
@@ -148,7 +152,7 @@ export async function mergeAgent(session: Session, key: string): Promise<{ ok: t
     const conflicted = await sandbox().exec(containerId, "cd /workspace && git diff --name-only --diff-filter=U", 15_000);
     await sandbox().exec(containerId, "cd /workspace && git merge --abort", 15_000);
     const conflicts = conflicted.output.split("\n").map((l) => l.trim()).filter(Boolean);
-    return { ok: false, conflicts, message: conflicts.length ? `Both sides changed ${conflicts.join(", ")}. Nothing was merged. Run git merge agent/${key} in the main terminal to resolve it by hand.` : merge.output.trim().split("\n").slice(-2).join(" ") };
+    return { ok: false, conflicts, message: conflicts.length ? "" : merge.output.trim().split("\n").slice(-2).join(" ") };
   }
   await db.update(schema.agents).set({ mergedAt: new Date() }).where(eq(schema.agents.id, row.id));
   await logEvent(session.id, "agent-merge", "candidate", { agent: key, name: row.name, ...summary(changes) });

@@ -5,7 +5,8 @@ import { db, schema } from "@/lib/db";
 import { practiceSession, sessionByInvite } from "@/lib/sessions";
 import { getSetup } from "@/lib/setup/store";
 import { buildSteps, completion } from "@/lib/prep/steps";
-import { displayName } from "@/lib/format";
+import { dayAndTime, displayName } from "@/lib/format";
+import { getI18n } from "@/lib/i18n/server";
 import { renderMarkdown } from "@/lib/markdown";
 import { loadKit, prepWindow, progressFor } from "@/lib/prep";
 import { kitIsEmpty } from "@/lib/prep/kit";
@@ -20,15 +21,19 @@ import { Countdown } from "./countdown";
 import { PrepFlow } from "./flow";
 import type { PracticeOffer } from "./practice";
 
-export const metadata: Metadata = { title: "Prepare" };
 export const dynamic = "force-dynamic";
 
-const dateFormat: Intl.DateTimeFormatOptions = { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t("prep.pageTitle") };
+}
 
 export default async function PreparePage({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { token } = await params;
   const session = await sessionByInvite(token);
   if (!session || session.practiceOf || session.status !== "invited" || session.inviteExpiresAt.getTime() < Date.now()) redirect(`/s/${token}`);
+  const i18n = await getI18n();
+  const { t } = i18n;
   const kit = await loadKit();
   if (kitIsEmpty(kit)) redirect(`/s/${token}`);
   const [progress, job, practiceChallenge, policy, brought, practiceFound] = await Promise.all([
@@ -56,16 +61,16 @@ export default async function PreparePage({ params, searchParams }: { params: Pr
 
   if (prepState.state === "upcoming" && prepState.opensAt) {
     return (
-      <Frame email={session.candidateEmail} nav={nav}>
+      <Frame i18n={i18n} email={session.candidateEmail} nav={nav}>
         <PrepClaim token={token} />
         <main className={css.center}>
           <div style={{ maxWidth: 480 }} data-el="prep-locked">
-            <Sprout mood="sleeping" size={112} label="Sprout sleeping" />
-            <h1 className={css.display} style={{ fontSize: 30, lineHeight: 1.1, margin: "20px 0 0" }}>Your prep space opens soon</h1>
+            <Sprout mood="sleeping" size={112} label={t("candidate.sprout.sleeping")} />
+            <h1 className={css.display} style={{ fontSize: 30, lineHeight: 1.1, margin: "20px 0 0" }}>{t("prep.locked.title")}</h1>
             <p className={ui.muted} style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6 }}>
-              It opens on <b style={{ color: "var(--w-fg)" }}>{prepState.opensAt.toLocaleString("en-US", dateFormat)}</b>, {kit.opensDaysBefore} day{kit.opensDaysBefore === 1 ? "" : "s"} before your interview. Come back to this same link then.
+              {t("prep.locked.text", { when: dayAndTime(i18n, prepState.opensAt), n: kit.opensDaysBefore })}
             </p>
-            <div style={{ marginTop: 20 }}><Countdown target={prepState.opensAt.toISOString()} label="Opens in" /></div>
+            <div style={{ marginTop: 20 }}><Countdown target={prepState.opensAt.toISOString()} label={t("prep.locked.countdown")} /></div>
           </div>
         </main>
       </Frame>
@@ -76,12 +81,12 @@ export default async function PreparePage({ params, searchParams }: { params: Pr
   const query = await searchParams;
 
   return (
-    <Frame email={session.candidateEmail} nav={nav}>
+    <Frame i18n={i18n} email={session.candidateEmail} nav={nav}>
       <PrepClaim token={token} />
       <PrepFlow
         token={token}
         first={first}
-        kitName={kit.name || "Interview prep"}
+        kitName={kit.name || t("prep.kitName")}
         jobName={job?.name ?? null}
         welcomeHtml={kit.howWeWork.trim() ? renderMarkdown(kit.howWeWork) : ""}
         sections={kit.sections.map((s) => ({ id: s.id, title: s.title, html: renderMarkdown(s.body), links: s.links.map((l) => ({ ...l, host: hostOf(l.url) })) }))}

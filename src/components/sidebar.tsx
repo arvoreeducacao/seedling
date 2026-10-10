@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { spring } from "@/components/motion";
 import { IconLogout } from "@/components/icons";
 import { Logo } from "@/components/brand";
+import { useI18n } from "@/components/i18n";
 
 type Props = { email: string; name: string; org: string; initials: string; live: number; spent: string; budgetPct: number; counts: { sessions: number; challenges: number } };
 
@@ -54,6 +55,7 @@ function Nav({ items, label, group }: { items: NavItem[]; label: string; group: 
 }
 
 export function Sidebar({ email, name, org, initials, live, spent, budgetPct, counts }: Props) {
+  const { t } = useI18n();
   const path = usePathname();
   const active = (href: string, exact?: boolean) => (exact ? path === href : path === href || path.startsWith(`${href}/`));
   return (
@@ -61,28 +63,28 @@ export function Sidebar({ email, name, org, initials, live, spent, budgetPct, co
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 6px 18px" }}>
         <div style={{ minWidth: 0, lineHeight: 1.25 }}>
           <Logo size={28} />
-          <div className="faint truncate" style={{ fontSize: 11.5, marginTop: 2, paddingLeft: 29 }}>{org === "Seedling" ? "Self-hosted" : org}</div>
+          <div className="faint truncate" style={{ fontSize: 11.5, marginTop: 2, paddingLeft: 29 }}>{org === "Seedling" ? t("nav.selfHosted") : org}</div>
         </div>
       </div>
       <Link href="/sessions/new" className="btn btn-block" style={{ justifyContent: "flex-start", marginBottom: 18, color: "var(--text-2)" }} data-el="sidebar-invite">
         <Glyph name="invite" />
-        Invite candidate
+        {t("nav.inviteCandidate")}
         <span className="kbd" style={{ marginLeft: "auto" }}>C</span>
       </Link>
       <Nav
-        label="Main"
+        label={t("nav.main")}
         group="main"
         items={[
-          { href: "/", label: "Overview", glyph: "overview", on: active("/", true) },
-          { href: "/sessions", label: "Sessions", glyph: "sessions", on: active("/sessions") && path !== "/sessions/new", count: live > 0 ? `${live} live` : counts.sessions, hot: live > 0 },
-          { href: "/challenges", label: "Challenges", glyph: "challenges", on: active("/challenges"), count: counts.challenges },
+          { href: "/", label: t("nav.overview"), glyph: "overview", on: active("/", true) },
+          { href: "/sessions", label: t("nav.sessions"), glyph: "sessions", on: active("/sessions") && path !== "/sessions/new", count: live > 0 ? t("nav.liveCount", { n: live }) : counts.sessions, hot: live > 0 },
+          { href: "/challenges", label: t("nav.challenges"), glyph: "challenges", on: active("/challenges"), count: counts.challenges },
         ]}
       />
-      <div className="eyebrow" style={{ padding: "22px 10px 8px", fontSize: 10.5 }}>Workspace</div>
-      <Nav label="Workspace" group="workspace" items={[{ href: "/settings", label: "Settings", glyph: "settings", on: active("/settings") }]} />
+      <div className="eyebrow" style={{ padding: "22px 10px 8px", fontSize: 10.5 }}>{t("nav.workspace")}</div>
+      <Nav label={t("nav.workspace")} group="workspace" items={[{ href: "/settings", label: t("nav.settings"), glyph: "settings", on: active("/settings") }]} />
       <div data-el="ai-spend" style={{ marginTop: "auto", borderRadius: "var(--r-lg)", padding: "12px 14px", background: "var(--surface)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 11.5 }}>
-          <span className="faint">AI spend this month</span>
+          <span className="faint">{t("nav.aiSpend")}</span>
         </div>
         <div className="num" style={{ marginTop: 4, fontSize: 12.5, color: budgetPct > 80 ? "var(--warn)" : "var(--text)" }}>{spent}</div>
         <div className="bar" style={{ marginTop: 8, height: 3 }}><i style={{ width: `${Math.max(2, Math.min(100, budgetPct))}%`, background: budgetPct > 80 ? "var(--warn)" : undefined }} /></div>
@@ -94,7 +96,7 @@ export function Sidebar({ email, name, org, initials, live, spent, budgetPct, co
           <div className="truncate faint" style={{ fontSize: 11 }} title={email}>{email}</div>
         </div>
         <form action="/auth/logout" method="post">
-          <button className="btn btn-ghost btn-sm btn-icon" aria-label="Sign out" title="Sign out"><IconLogout size={14} /></button>
+          <button className="btn btn-ghost btn-sm btn-icon" aria-label={t("common.signOut")} title={t("common.signOut")}><IconLogout size={14} /></button>
         </form>
       </div>
     </aside>

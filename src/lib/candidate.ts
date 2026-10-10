@@ -3,6 +3,8 @@ import path from "node:path";
 import { cookies } from "next/headers";
 import { CANDIDATE_COOKIE, candidateOwns, sessionByInvite, workspaceDir, type Session } from "@/lib/sessions";
 import { lexicalTarget, readInside } from "@/lib/safe-path";
+import { AppError, hasKey, type Key, type T } from "@/lib/i18n";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function candidateSession(token: string): Promise<Session | null> {
   const session = await sessionByInvite(token);
@@ -11,8 +13,15 @@ export async function candidateSession(token: string): Promise<Session | null> {
   return candidateOwns(session, jar.get(CANDIDATE_COOKIE)?.value) ? session : null;
 }
 
-export function unauthorized() {
-  return Response.json({ error: "invalid or closed session" }, { status: 401 });
+export async function unauthorized() {
+  const { t } = await getI18n();
+  return Response.json({ error: t("server.sessionClosed") }, { status: 401 });
+}
+
+export function errorText(error: unknown, t: T, fallback: Key) {
+  if (error instanceof AppError) return t(error.key, error.params);
+  if (error instanceof Error && hasKey(error.message)) return t(error.message);
+  return t(fallback);
 }
 
 export function workspaceRoot(session: Session) {

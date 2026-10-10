@@ -3,6 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CalendarBlank, CaretLeft, CaretRight, Clock, X } from "@phosphor-icons/react";
 import { addDays, addMonths, clampDay, dayDisabled, formatSlot, minutesOfDay, monthGrid, nextBusinessDay, parseTime, sameDay, snapMinutes, startOfDay, timeSlots, timeZoneLabel, withTime } from "@/lib/datetime";
+import { useI18n } from "@/components/i18n";
+import type { Locale } from "@/lib/i18n";
 import css from "./date-time-picker.module.css";
 
 type Props = {
@@ -16,14 +18,25 @@ type Props = {
   suggestion?: Date;
 };
 
-const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const dateTag: Record<Locale, string> = { en: "en-US", pt: "pt-BR" };
 const slots = timeSlots();
+const firstSunday = new Date(2024, 0, 7);
 
-export function formatDateTime(date: Date) {
-  return date.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+function weekdayNames(tag: string) {
+  const format = new Intl.DateTimeFormat(tag, { weekday: "short" });
+  return Array.from({ length: 7 }, (_, i) => format.format(addDays(firstSunday, i)).replace(/\.$/, ""));
 }
 
-export function DateTimePicker({ value, onChange, name, min = null, max = null, ariaLabel = "Date and time", placeholder = "Pick a date and time", suggestion }: Props) {
+export function formatDateTime(locale: Locale, date: Date) {
+  return date.toLocaleString(dateTag[locale], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+export function DateTimePicker({ value, onChange, name, min = null, max = null, ariaLabel, placeholder, suggestion }: Props) {
+  const { locale, t } = useI18n();
+  const tag = dateTag[locale];
+  const label = ariaLabel ?? t("invite.picker.ariaDefault");
+  const hint = placeholder ?? t("invite.picker.placeholder");
+  const weekdays = useMemo(() => weekdayNames(tag), [tag]);
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -39,7 +52,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
   const days = useMemo(() => monthGrid(cursor), [cursor]);
   const focusDay = useRef(false);
 
-  useEffect(() => setZone(timeZoneLabel(value ?? new Date())), [value]);
+  useEffect(() => setZone(timeZoneLabel(value ?? new Date(), tag)), [value, tag]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +154,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
   }
 
   const selectedSlot = snapMinutes(time);
-  const monthLabel = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = cursor.toLocaleDateString(tag, { month: "long", year: "numeric" });
   const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
   const prevDisabled = Boolean(min && monthIndex(cursor) <= monthIndex(min));
   const nextDisabled = Boolean(max && monthIndex(cursor) >= monthIndex(max));
@@ -158,7 +171,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls={open ? `${id}-pop` : undefined}
-          aria-label={value ? `${ariaLabel}: ${formatDateTime(value)}` : ariaLabel}
+          aria-label={value ? t("invite.picker.valueAria", { label, value: formatDateTime(locale, value) }) : label}
           onClick={() => (open ? close(false) : show())}
           onKeyDown={(e) => {
             if (!open && e.key === "ArrowDown") {
@@ -169,25 +182,25 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
           data-el="date-picker-trigger"
         >
           <CalendarBlank size={15} className={css.icon} />
-          <span className="value num" style={{ color: value ? undefined : "var(--text-3)" }}>{value ? formatDateTime(value) : placeholder}</span>
+          <span className="value num" style={{ color: value ? undefined : "var(--text-3)" }}>{value ? formatDateTime(locale, value) : hint}</span>
         </button>
         {value && (
-          <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={`Clear ${ariaLabel.toLowerCase()}`} title="Clear" onClick={() => onChange(null)} data-el="date-picker-clear">
+          <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={t("invite.picker.clearAria", { label: label.toLowerCase() })} title={t("invite.picker.clear")} onClick={() => onChange(null)} data-el="date-picker-clear">
             <X size={13} />
           </button>
         )}
       </div>
-      <div className={css.zone} aria-live="polite">{zone ? `Your time zone: ${zone}` : " "}</div>
+      <div className={css.zone} aria-live="polite">{zone ? t("invite.picker.timeZone", { zone }) : " "}</div>
 
       {open && (
-        <div id={`${id}-pop`} role="dialog" aria-modal="false" aria-label={ariaLabel} className={css.popover} onKeyDown={onPopoverKey} data-el="date-picker">
+        <div id={`${id}-pop`} role="dialog" aria-modal="false" aria-label={label} className={css.popover} onKeyDown={onPopoverKey} data-el="date-picker">
           <div className={css.panes}>
             <div className={css.calendar}>
               <div className={css.monthBar}>
                 <span className={css.month} aria-live="polite">{monthLabel}</span>
-                <button type="button" className={`btn btn-ghost btn-sm ${css.today}`} onClick={() => moveCursor(today)}>Today</button>
-                <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label="Previous month" disabled={prevDisabled} onClick={() => moveCursor(addMonths(cursor, -1))}><CaretLeft size={13} weight="bold" /></button>
-                <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label="Next month" disabled={nextDisabled} onClick={() => moveCursor(addMonths(cursor, 1))}><CaretRight size={13} weight="bold" /></button>
+                <button type="button" className={`btn btn-ghost btn-sm ${css.today}`} onClick={() => moveCursor(today)}>{t("invite.picker.today")}</button>
+                <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={t("invite.picker.prevMonth")} disabled={prevDisabled} onClick={() => moveCursor(addMonths(cursor, -1))}><CaretLeft size={13} weight="bold" /></button>
+                <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={t("invite.picker.nextMonth")} disabled={nextDisabled} onClick={() => moveCursor(addMonths(cursor, 1))}><CaretRight size={13} weight="bold" /></button>
               </div>
               <div ref={grid} role="grid" aria-label={monthLabel} className={css.grid} onKeyDown={onGridKey}>
                 <div role="row" className={css.week}>
@@ -211,7 +224,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
                             data-selected={selected || undefined}
                             data-suggested={!value && sameDay(day, fallback) && suggestionUsable ? true : undefined}
                             disabled={disabled}
-                            aria-label={day.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                            aria-label={day.toLocaleDateString(tag, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                             aria-current={sameDay(day, today) ? "date" : undefined}
                             onClick={() => pickDay(day)}
                             onFocus={() => !sameDay(day, cursor) && setCursor(day)}
@@ -230,7 +243,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
                 <Clock size={13} className={css.icon} />
                 <input
                   value={typed}
-                  placeholder={formatSlot(selectedSlot)}
+                  placeholder={formatSlot(selectedSlot, tag)}
                   onChange={(e) => setTyped(e.target.value)}
                   onBlur={commitTyped}
                   onKeyDown={(e) => {
@@ -239,11 +252,11 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
                       commitTyped();
                     }
                   }}
-                  aria-label="Type a time"
+                  aria-label={t("invite.picker.typeTime")}
                   className="num"
                 />
               </label>
-              <div ref={times} role="listbox" aria-label="Time, in 15 minute steps" tabIndex={0} aria-activedescendant={`${id}-t${selectedSlot}`} className={`${css.times} scroll-thin`} onKeyDown={onTimeKey} data-el="time-list">
+              <div ref={times} role="listbox" aria-label={t("invite.picker.timeList")} tabIndex={0} aria-activedescendant={`${id}-t${selectedSlot}`} className={`${css.times} scroll-thin`} onKeyDown={onTimeKey} data-el="time-list">
                 {slots.map((m) => (
                   <div
                     key={m}
@@ -255,7 +268,7 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pickTime(m)}
                   >
-                    {formatSlot(m)}
+                    {formatSlot(m, tag)}
                   </div>
                 ))}
               </div>
@@ -264,14 +277,14 @@ export function DateTimePicker({ value, onChange, name, min = null, max = null, 
           <div className={css.foot}>
             {!value && suggestionUsable ? (
               <button type="button" className="btn btn-sm" onClick={() => { setCursor(startOfDay(fallback)); setTime(minutesOfDay(fallback)); onChange(fallback); }} data-el="date-picker-suggest">
-                {formatDateTime(fallback)}
+                {formatDateTime(locale, fallback)}
               </button>
             ) : (
               <span className={css.footZone}>{zone}</span>
             )}
             <span style={{ flex: 1 }} />
-            {value && <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>Clear</button>}
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => close()}>Done</button>
+            {value && <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange(null)}>{t("invite.picker.clear")}</button>}
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => close()}>{t("invite.picker.done")}</button>
           </div>
         </div>
       )}

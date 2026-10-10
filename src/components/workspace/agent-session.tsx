@@ -6,9 +6,13 @@ import { TerminalView, type TerminalHandle, type TerminalStatus } from "./termin
 import { AnimatePresence, motion } from "motion/react";
 import { TaskRow, type TaskStatus } from "./ai";
 import { AgentBuddy, Sprout, type AgentState } from "@/components/brand";
+import { useI18n } from "@/components/i18n";
+import { hasKey, type Key } from "@/lib/i18n";
 import ui from "./ui.module.css";
 
 const LAUNCH = "claude\r";
+
+const buddyKey: Record<AgentState, Key> = { working: "workspace.buddyWorking", done: "workspace.buddyDone", idle: "workspace.buddyIdle", error: "workspace.buddyError" };
 
 function launchedKey(sessionId: string, index: number, agent: string) {
   return agent === "main" ? `seedling:agent:${sessionId}:${index}` : `seedling:agent:${sessionId}:${index}:${agent}`;
@@ -29,6 +33,7 @@ function writeFlag(key: string) {
 }
 
 export function AgentSession({ sessionId, agent = "main", visible = true, challengeIndex, generation, model, aiActive, aiReason, handle, onActivity }: { sessionId: string; agent?: string; visible?: boolean; challengeIndex: number; generation: number; model: string; aiActive: boolean; aiReason: string | null; handle: React.RefObject<TerminalHandle | null>; onActivity?: (agent: string, state: AgentState) => void }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<TerminalStatus>("connecting");
   const [phase, setPhase] = useState<"connecting" | "shell" | "agent" | "ready" | "failed">("connecting");
   const phaseRef = useRef(phase);
@@ -95,10 +100,6 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
   const onOutput = useCallback(
     (text: string, sinceOpen: number) => {
       if (sinceOpen >= 400 && text.length > 3) lastOutput.current = Date.now();
-      if (text.includes("sandbox is not running")) {
-        setPhase("failed");
-        return;
-      }
       if (phaseRef.current === "agent" && /Claude Code|╭|>\s/.test(text)) {
         if (readyTimer.current) clearTimeout(readyTimer.current);
         readyTimer.current = setTimeout(() => setPhase("ready"), 300);
@@ -111,7 +112,7 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
     [launch],
   );
 
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Key | null>(null);
   const lastOutput = useRef(0);
   const [activity, setActivity] = useState<"idle" | "working" | "done">("idle");
 
@@ -141,9 +142,13 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
 
   const onControl = useCallback(
     (message: string) => {
+      if (message === "no-sandbox") {
+        setPhase("failed");
+        return;
+      }
       if (!message.startsWith("fresh:")) return;
       if (!launched.current) return;
-      setNotice(message === "fresh:revived" ? "Your sandbox restarted. Files are safe, the agent conversation started fresh." : "Your terminal reconnected to a new shell. Files are safe, the agent conversation started fresh.");
+      setNotice(message === "fresh:revived" ? "workspace.noticeRevived" : "workspace.noticeReconnected");
       setPhase((p) => (p === "failed" ? p : "agent"));
       const term = handle.current;
       setTimeout(() => term?.syncSize(), 200);
@@ -181,30 +186,30 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
   }
 
   return (
-    <div className={ui.agentPane} style={visible ? undefined : { display: "none" }} data-el="agent-session" data-agent={agent} role="tabpanel" aria-label={`Agent session ${agent}`}>
+    <div className={ui.agentPane} style={visible ? undefined : { display: "none" }} data-el="agent-session" data-agent={agent} role="tabpanel" aria-label={t("workspace.agentSessionLabel", { agent })}>
       <div className={ui.agentBar}>
         <div className={ui.agentTitle}>
-          <span className={ui.buddySlot}><AgentBuddy state={buddy} size={34} appear={false} label={`Agent ${buddy}`} /></span>
+          <span className={ui.buddySlot}><AgentBuddy state={buddy} size={34} appear={false} label={t("workspace.agentBuddyLabel", { state: t(buddyKey[buddy]) })} /></span>
           Claude Code
         </div>
-        <span className={`${ui.chip} ${ui.mono}`} title="Model routed through the interview gateway">{model}</span>
+        <span className={`${ui.chip} ${ui.mono}`} title={t("workspace.modelTitle")}>{model}</span>
         <span className={`${ui.chip} ${status === "live" ? ui.chipOk : status === "offline" ? ui.chipWarn : ""}`} data-el="connection">
           <span className={ui.dot} />
-          {status === "live" ? "Connected" : status === "offline" ? "Reconnecting" : "Connecting"}
+          {t(status === "live" ? "workspace.connected" : status === "offline" ? "workspace.reconnecting" : "workspace.connecting")}
         </span>
         <div className={ui.hints}>
-          <span className={ui.hint}><span className={ui.kbd}>!</span> shell</span>
-          <span className={ui.hint}><span className={ui.kbd}>/</span> commands</span>
-          <span className={ui.hint}><span className={ui.kbd}>esc</span> interrupt</span>
+          <span className={ui.hint}><span className={ui.kbd}>!</span> {t("workspace.hintShell")}</span>
+          <span className={ui.hint}><span className={ui.kbd}>/</span> {t("workspace.hintCommands")}</span>
+          <span className={ui.hint}><span className={ui.kbd}>esc</span> {t("workspace.hintInterrupt")}</span>
         </div>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={restart} disabled={status !== "live"} title="Exit the current agent and start a fresh one" data-el="restart-agent">
-          <ArrowClockwise size={13} /> New session
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={restart} disabled={status !== "live"} title={t("workspace.restartHint")} data-el="restart-agent">
+          <ArrowClockwise size={13} /> {t("workspace.newSession")}
         </button>
       </div>
       {!aiActive && (
         <div className={`${ui.banner} ${ui.bannerErr}`} role="status" data-el="ai-off">
           <span className={ui.dot} style={{ color: "var(--w-err)" }} />
-          <span><b style={{ fontWeight: 600 }}>AI access is off.</b> <span className={ui.muted}>{aiReason ?? "The agent can no longer call the model."} The terminal still works.</span></span>
+          <span><b style={{ fontWeight: 600 }}>{t("workspace.aiOffBold")}</b> <span className={ui.muted}>{(aiReason && hasKey(aiReason) ? t(aiReason) : aiReason) ?? t("workspace.aiOffDefaultReason")} {t("workspace.terminalStillWorks")}</span></span>
         </div>
       )}
       <AnimatePresence initial={false}>
@@ -212,8 +217,8 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
           <motion.div key="notice" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", flex: "none" }}>
             <div className={`${ui.banner} ${ui.bannerWarn}`} role="status" data-el="sandbox-restarted">
               <span className={ui.dot} style={{ color: "var(--w-warn)" }} />
-              <span style={{ flex: 1 }}>{notice}</span>
-              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => setNotice(null)}>Got it</button>
+              <span style={{ flex: 1 }}>{t(notice)}</span>
+              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => setNotice(null)}>{t("workspace.gotIt")}</button>
             </div>
           </motion.div>
         )}
@@ -226,16 +231,16 @@ export function AgentSession({ sessionId, agent = "main", visible = true, challe
               <motion.div className={ui.bootCard} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <Sprout mood={phase === "failed" ? "worried" : "thinking"} size={104} />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: "var(--w-head)" }}>{phase === "failed" ? "Your sandbox didn't start" : "Getting your sandbox ready"}</div>
-                  <div className={ui.faint} style={{ marginTop: 4, fontSize: 12.5 }}>{phase === "failed" ? "Your files are safe. Reload in a few seconds, and tell your interviewer if it keeps happening." : "Claude Code opens here as soon as it's up."}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: "var(--w-head)" }}>{t(phase === "failed" ? "workspace.bootFailedTitle" : "workspace.bootTitle")}</div>
+                  <div className={ui.faint} style={{ marginTop: 4, fontSize: 12.5 }}>{t(phase === "failed" ? "workspace.bootFailedText" : "workspace.bootText")}</div>
                 </div>
                 {phase === "failed" ? (
-                  <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => location.reload()}>Reload</button>
+                  <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => location.reload()}>{t("workspace.reload")}</button>
                 ) : (
                   <div className={ui.bootTasks}>
-                    <TaskRow status={stepStatus(phase, 0)} label="Connecting to the sandbox" />
-                    <TaskRow status={stepStatus(phase, 1)} label="Opening a shell in /workspace" />
-                    <TaskRow status={stepStatus(phase, 2)} label={aiActive ? "Starting Claude Code" : "AI access is off"} />
+                    <TaskRow status={stepStatus(phase, 0)} label={t("workspace.stepConnect")} />
+                    <TaskRow status={stepStatus(phase, 1)} label={t("workspace.stepShell")} />
+                    <TaskRow status={stepStatus(phase, 2)} label={t(aiActive ? "workspace.stepAgent" : "workspace.aiOffTitle")} />
                   </div>
                 )}
               </motion.div>

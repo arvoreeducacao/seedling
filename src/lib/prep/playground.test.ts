@@ -20,7 +20,7 @@ describe("practice modes in the kit", () => {
     const parsed = parseKit({ practice: { mode: "challenge", challenge: "missing" } }, []);
     if (!parsed.ok) throw new Error(parsed.error);
     expect(parsed.kit.practice).toMatchObject({ mode: "playground", challengeId: null });
-    expect(parsed.notes[0]).toContain("playground");
+    expect(parsed.notes[0]?.key).toBe("kit.note.playgroundForUnpublished");
   });
 
   it("rejects limits outside the allowed range", () => {

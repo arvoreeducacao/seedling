@@ -7,9 +7,11 @@ import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env";
 import { monthSpend } from "@/lib/gateway";
 import { displayName, initials, money } from "@/lib/format";
+import { getI18n } from "@/lib/i18n/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin();
+  const i18n = await getI18n();
   const [[sessions], [challenges], [live], spent] = await Promise.all([
     db.select({ n: count() }).from(schema.sessions).where(isNull(schema.sessions.practiceOf)),
     db.select({ n: count() }).from(schema.challenges),
@@ -26,7 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           org={env.orgName}
           initials={initials(admin.name ?? admin.email)}
           live={live.n}
-          spent={`${money(spent)} of $${env.monthlyBudgetUsd}`}
+          spent={i18n.t("nav.spentOf", { spent: money(i18n, spent), cap: money(i18n, env.monthlyBudgetUsd) })}
           budgetPct={(spent / env.monthlyBudgetUsd) * 100}
           counts={{ sessions: sessions.n, challenges: challenges.n }}
         />

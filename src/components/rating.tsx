@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/components/i18n";
 
-const words = ["no score", "weak", "ok", "good", "strong"];
+const scoreKeys = ["report.score.none", "report.score.weak", "report.score.ok", "report.score.good", "report.score.strong"] as const;
 
 export function Rating({ name, label, initial }: { name: string; label: string; initial: number }) {
   const [value, setValue] = useState(initial);
+  const { t } = useI18n();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       <input type="hidden" name={name} value={value} />
       <span className="muted truncate" style={{ flex: 1 }}>{label}</span>
-      <span className="faint" style={{ fontSize: 11.5, width: 44, textAlign: "right" }}>{value ? words[value] : ""}</span>
+      <span className="faint" style={{ fontSize: 11.5, width: 44, textAlign: "right" }}>{value ? t(scoreKeys[value]) : ""}</span>
       <div role="radiogroup" aria-label={label} style={{ display: "flex", gap: 3 }}>
         {[1, 2, 3, 4].map((n) => (
           <button
@@ -18,8 +20,8 @@ export function Rating({ name, label, initial }: { name: string; label: string; 
             type="button"
             role="radio"
             aria-checked={value === n}
-            aria-label={`${n} · ${words[n]}`}
-            title={`${n} · ${words[n]}`}
+            aria-label={`${n} · ${t(scoreKeys[n])}`}
+            title={`${n} · ${t(scoreKeys[n])}`}
             onClick={() => setValue(value === n ? 0 : n)}
             style={{ width: 22, height: 20, padding: "7px 0", background: "transparent", border: 0, display: "flex" }}
           >

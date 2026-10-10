@@ -1,13 +1,14 @@
 import { cookies } from "next/headers";
 import { sessionByInvite } from "@/lib/sessions";
 import { PREP_COOKIE, prepCookieOptions, prepCookieValue, touchProgress } from "@/lib/prep";
+import { i18nFromRequest } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const session = await sessionByInvite(token);
-  if (!session || session.practiceOf || session.status !== "invited") return Response.json({ error: "This link can't open a prep space." }, { status: 404 });
+  if (!session || session.practiceOf || session.status !== "invited") return Response.json({ error: i18nFromRequest(req).t("server.noPrepSpace") }, { status: 404 });
   const jar = await cookies();
   jar.set(PREP_COOKIE, prepCookieValue(session.id), prepCookieOptions());
   await touchProgress(session.id);

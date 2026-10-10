@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowClockwise, ArrowLeft, ArrowRight, ArrowSquareOut, Browser, CaretDown, Eye, FileHtml, Globe, Plug, Robot } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
+import { useI18n } from "@/components/i18n";
+import { hasKey } from "@/lib/i18n";
 import { agentAddress, displayUrl, formatAddress, parseAddress, type Address } from "./address";
 import { Placeholder } from "./viewers";
 import ui from "./ui.module.css";
@@ -41,6 +43,7 @@ export function BrowserPane({
   extra?: (open: (address: Address) => void) => React.ReactNode;
   preferred?: Address | null;
 }) {
+  const { t } = useI18n();
   const [info, setInfo] = useState<Info | null>(null);
   const [current, setCurrent] = useState<Address | null>(null);
   const [frame, setFrame] = useState<{ src: string; key: number } | null>(null);
@@ -71,7 +74,7 @@ export function BrowserPane({
     const res = await fetch(endpoint, { cache: "no-store" }).catch(() => null);
     if (!res?.ok) return null;
     let json: Info = await res.json();
-    if (json.enabled && new URL(json.origin).origin === window.location.origin) json = { enabled: false, reason: "The preview origin must differ from the app origin. Check SEEDLING_PREVIEW_ORIGIN." };
+    if (json.enabled && new URL(json.origin).origin === window.location.origin) json = { enabled: false, reason: "workspace.previewOriginClash" };
     setInfo(json);
     return json;
   }, [endpoint]);
@@ -272,7 +275,7 @@ export function BrowserPane({
     e.preventDefault();
     const address = parseAddress(input, current?.port ?? null);
     if (!address) {
-      setError(/^https?:\/\//i.test(input.trim()) && !/localhost|127\.0\.0\.1/i.test(input) ? "Only pages served inside the sandbox open here." : "Type a port like 3000, an address like localhost:5173/books, or an .html file.");
+      setError(t(/^https?:\/\//i.test(input.trim()) && !/localhost|127\.0\.0\.1/i.test(input) ? "workspace.onlySandboxPages" : "workspace.addressHelp"));
       return;
     }
     open(address);
@@ -285,24 +288,25 @@ export function BrowserPane({
   }
 
   if (info && !info.enabled) {
-    return <Placeholder icon={<Browser size={18} />} title="The browser is off">{info.reason}</Placeholder>;
+    const reason = hasKey(info.reason) ? t(info.reason) : info.reason;
+    return <Placeholder icon={<Browser size={18} />} title={t("workspace.browserOff")}>{reason}</Placeholder>;
   }
 
   const watching = view === "agent" && Boolean(agent || shot);
   const ports = info?.enabled ? info.ports : [];
   const suggested = info?.enabled ? info.suggested : null;
   const choices = [
-    ...ports.map((port) => ({ key: `p${port}`, label: `localhost:${port}`, hint: port === suggested ? "app" : "listening", address: { port, path: "/" }, file: false })),
-    ...(suggested && !ports.includes(suggested) ? [{ key: `s${suggested}`, label: `localhost:${suggested}`, hint: "not running yet", address: { port: suggested, path: "/" }, file: false }] : []),
-    ...htmlFiles.slice(0, 8).map((path) => ({ key: `f${path}`, label: path, hint: "file", address: { port: 0, path: `/${path}` }, file: true })),
+    ...ports.map((port) => ({ key: `p${port}`, label: `localhost:${port}`, hint: t(port === suggested ? "workspace.hintApp" : "workspace.hintListening"), address: { port, path: "/" }, file: false })),
+    ...(suggested && !ports.includes(suggested) ? [{ key: `s${suggested}`, label: `localhost:${suggested}`, hint: t("workspace.hintNotRunning"), address: { port: suggested, path: "/" }, file: false }] : []),
+    ...htmlFiles.slice(0, 8).map((path) => ({ key: `f${path}`, label: path, hint: t("workspace.hintFile"), address: { port: 0, path: `/${path}` }, file: true })),
   ];
 
   return (
     <div className={ui.panelBody} data-el="browser">
       <form className={ui.browserBar} onSubmit={submit}>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => travel(-1)} disabled={history.index <= 0} aria-label="Back" title="Back"><ArrowLeft size={14} /></button>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => travel(1)} disabled={history.index >= history.entries.length - 1} aria-label="Forward" title="Forward"><ArrowRight size={14} /></button>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={reload} disabled={!current} aria-label="Reload" title="Reload"><ArrowClockwise size={14} className={loading ? ui.spinning : undefined} /></button>
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => travel(-1)} disabled={history.index <= 0} aria-label={t("common.back")} title={t("common.back")}><ArrowLeft size={14} /></button>
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => travel(1)} disabled={history.index >= history.entries.length - 1} aria-label={t("workspace.forward")} title={t("workspace.forward")}><ArrowRight size={14} /></button>
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={reload} disabled={!current} aria-label={t("workspace.reload")} title={t("workspace.reload")}><ArrowClockwise size={14} className={loading ? ui.spinning : undefined} /></button>
         <div className={ui.addressWrap}>
           <span className={ui.addressIcon}>{current?.port === 0 ? <FileHtml size={13} /> : <Globe size={13} />}</span>
           <input
@@ -323,8 +327,8 @@ export function BrowserPane({
             onKeyDown={(e) => {
               if (e.key === "Escape") e.currentTarget.blur();
             }}
-            placeholder="Port, localhost:5173/path or page.html"
-            aria-label="Address"
+            placeholder={t("workspace.addressPlaceholder")}
+            aria-label={t("workspace.addressLabel")}
             spellCheck={false}
             autoComplete="off"
             data-el="address-bar"
@@ -332,7 +336,7 @@ export function BrowserPane({
           {loading && <span className={ui.addressProgress} />}
         </div>
         <div className={ui.portMenu} ref={menuRef}>
-          <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => setMenu((v) => !v)} aria-expanded={menu} aria-haspopup="menu" title="Ports and pages" data-el="ports">
+          <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => setMenu((v) => !v)} aria-expanded={menu} aria-haspopup="menu" title={t("workspace.portsTitle")} data-el="ports">
             <Plug size={13} />
             <span className={ui.mono}>{ports.length}</span>
             <CaretDown size={10} />
@@ -349,31 +353,31 @@ export function BrowserPane({
                     </button>
                   ))
                 ) : (
-                  <div className={ui.portEmpty}>Nothing is listening in the sandbox yet.</div>
+                  <div className={ui.portEmpty}>{t("workspace.nothingListening")}</div>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => void newTab()} disabled={!current} aria-label="Open in a new tab" title="Open in a new tab"><ArrowSquareOut size={14} /></button>
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => void newTab()} disabled={!current} aria-label={t("workspace.openNewTab")} title={t("workspace.openNewTab")}><ArrowSquareOut size={14} /></button>
       </form>
       {agent && (
         <div className={ui.agentBrowsing} data-el="agent-browsing">
           <span className={ui.agentMark}><Robot size={13} weight="fill" /></span>
           <span className={ui.agentLabel}>
             {now - agent.changedAt < AGENT_ACTIVE_MS && <span className={ui.agentPulse} />}
-            {now - agent.changedAt < AGENT_ACTIVE_MS ? "Agent is browsing" : "Agent's browser"}
+            {t(now - agent.changedAt < AGENT_ACTIVE_MS ? "workspace.agentBrowsing" : "workspace.agentBrowser")}
           </span>
           <span className={`${ui.mono} ${ui.ellipsis}`} style={{ flex: 1, color: "var(--w-fg)" }} title={agent.title ? `${agent.title} · ${agent.url}` : agent.url}>{displayUrl(agent.url)}</span>
           {view === "agent" ? (
             <>
               {agentAddress(agent.url) && (
-                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => open(agentAddress(agent.url)!)} title="Load the same page here so you can click around">Open here</button>
+                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => open(agentAddress(agent.url)!)} title={t("workspace.openHereHint")}>{t("workspace.openHere")}</button>
               )}
-              {frame && <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => { setView("page"); setFollow(false); }}>Your page</button>}
+              {frame && <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => { setView("page"); setFollow(false); }}>{t("workspace.yourPage")}</button>}
             </>
           ) : (
-            <button type="button" className={`${ui.btn} ${ui.btnSm}`} onClick={() => { setView("agent"); setFollow(true); }} data-el="watch-agent"><Eye size={13} /> Watch</button>
+            <button type="button" className={`${ui.btn} ${ui.btnSm}`} onClick={() => { setView("agent"); setFollow(true); }} data-el="watch-agent"><Eye size={13} /> {t("workspace.watch")}</button>
           )}
         </div>
       )}
@@ -381,14 +385,14 @@ export function BrowserPane({
       {error && <div className={`${ui.banner} ${ui.bannerWarn}`} role="alert">{error}</div>}
       {watching ? (
         <div className={ui.agentStage} data-el="agent-view">
-          {shot ? <img src={shot} alt={agent ? `What the agent's browser shows: ${agent.title || agent.url}` : "The agent's browser"} /> : <span className={ui.spinner} />}
+          {shot ? <img src={shot} alt={agent ? t("workspace.agentShotAlt", { what: agent.title || agent.url }) : t("workspace.agentShotAltEmpty")} /> : <span className={ui.spinner} />}
         </div>
       ) : null}
       {frame ? (
         <iframe
           key={frame.key}
           ref={iframe}
-          title={title || "Page preview"}
+          title={title || t("workspace.pagePreview")}
           src={frame.src}
           className={ui.iframe}
           style={watching ? { display: "none" } : undefined}
@@ -398,8 +402,8 @@ export function BrowserPane({
           data-el="browser-frame"
         />
       ) : watching ? null : (
-        <Placeholder icon={<Browser size={18} />} title={info?.enabled && !info.running ? "The sandbox is starting" : "Nothing open yet"}>
-          <span>Start a dev server in the terminal, for example <code className={ui.mdCode}>npm run dev</code>, and it opens here. You can also type a port or an .html file above.</span>
+        <Placeholder icon={<Browser size={18} />} title={t(info?.enabled && !info.running ? "workspace.sandboxStarting" : "workspace.nothingOpen")}>
+          <span>{t("workspace.devServerHintBefore")}<code className={ui.mdCode}>npm run dev</code>{t("workspace.devServerHintAfter")}</span>
           {choices.length > 0 && (
             <div className={ui.quickOpen}>
               {choices.slice(0, 6).map((c) => (

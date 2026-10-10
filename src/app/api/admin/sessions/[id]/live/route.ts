@@ -7,15 +7,17 @@ import { displayName } from "@/lib/format";
 import { groupTurns } from "@/lib/calls";
 import { listAgents } from "@/lib/agents";
 import { withStatus } from "@/lib/agent-status";
+import { i18nFromRequest } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { t } = i18nFromRequest(req);
   const admin = await currentAdmin();
-  if (!admin) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!admin) return Response.json({ error: t("error.unauthorized") }, { status: 401 });
   const { id } = await params;
   const detail = await sessionDetail(id);
-  if (!detail) return Response.json({ error: "not found" }, { status: 404 });
+  if (!detail) return Response.json({ error: t("error.notFound") }, { status: 404 });
   const { session, calls, events, challenges, attempts, spent, aiActive } = detail;
   if (session.status === "running") markWatching(id, admin.email);
   const root = workspaceDir(id, session.currentIndex);

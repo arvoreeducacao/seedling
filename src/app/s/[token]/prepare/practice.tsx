@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowSquareOut, Flask } from "@phosphor-icons/react";
 import ui from "@/components/workspace/ui.module.css";
 import { AgentBuddy, Stopwatch } from "@/components/brand";
+import { useI18n } from "@/components/i18n";
+import { money } from "@/lib/format";
 import prep from "../prep.module.css";
-import { prepFetch } from "./client";
+import { prepError, prepFetch } from "./client";
 
 export type PracticeStatus = {
   status: "none" | "running" | "submitted" | "expired" | "cancelled" | "invited" | "paused";
@@ -41,6 +43,8 @@ export function practiceUsed(status: PracticeStatus | null) {
 }
 
 export function Practice({ token, offer, status, refresh }: { token: string; offer: PracticeOffer; status: PracticeStatus | null; refresh: () => Promise<void> }) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   async function start() {
@@ -54,7 +58,7 @@ export function Practice({ token, offer, status, refresh }: { token: string; off
       void refresh();
     } catch (e) {
       tab?.close();
-      setError(e instanceof Error ? e.message : "Couldn't start the practice run.");
+      setError(prepError(e, t, "prep.practice.startFailed"));
     } finally {
       setPending(false);
     }
@@ -66,49 +70,45 @@ export function Practice({ token, offer, status, refresh }: { token: string; off
   return (
     <div className={`${prep.panel} ${prep.practice}`} data-el={playground ? "playground" : "practice"}>
       <div className={prep.panelHead}>
-        <span className={prep.practiceTag}><Flask size={12} weight="fill" /> {playground ? "Playground · not graded" : "Practice · doesn't count"}</span>
+        <span className={prep.practiceTag}><Flask size={12} weight="fill" /> {playground ? t("prep.practice.tagPlayground") : t("prep.practice.tagPractice")}</span>
       </div>
       <div className={prep.practiceBody}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 className={prep.panelTitle}>{playground ? "A sandbox that's all yours" : "Warm up in a real sandbox"}</h3>
-          <p className={prep.panelText}>
-            {playground
-              ? "Same setup as the interview: a terminal with Claude Code already running, the files and a browser. Inside there's a short README and a tiny sample project with one failing test, so you have something to poke at. Explore, break things, try your skills."
-              : "Same setup as the interview: a terminal, the files and Claude Code. Try your skills and MCP servers, get used to the layout, then close the tab. Nobody grades it."}
-          </p>
+          <h3 className={prep.panelTitle}>{playground ? t("prep.practice.panelPlayground") : t("prep.practice.panelPractice")}</h3>
+          <p className={prep.panelText}>{playground ? t("prep.practice.bodyPlayground") : t("prep.practice.bodyPractice")}</p>
         </div>
         {running ? <Stopwatch progress={status?.remainingMs ? status.remainingMs / (offer.minutes * 60_000) : 1} running size={56} /> : <AgentBuddy state={used ? "done" : "idle"} size={64} />}
       </div>
       <dl className={prep.practiceFacts}>
         {playground ? (
           <>
-            <div><dt>Inside</dt><dd>Sample project</dd></div>
-            <div><dt>Your setup</dt><dd>Installed</dd></div>
+            <div><dt>{t("prep.practice.inside")}</dt><dd>{t("prep.practice.insideValue")}</dd></div>
+            <div><dt>{t("prep.practice.yourSetup")}</dt><dd>{t("prep.practice.yourSetupValue")}</dd></div>
           </>
         ) : (
           <>
-            <div><dt>Challenge</dt><dd>{offer.title}</dd></div>
-            <div><dt>Kind</dt><dd>{offer.kind === "screen" ? "UI" : "Code"} · {offer.runtime}</dd></div>
+            <div><dt>{t("prep.practice.challenge")}</dt><dd>{offer.title}</dd></div>
+            <div><dt>{t("prep.practice.kind")}</dt><dd>{offer.kind === "screen" ? t("prep.ui") : t("kind.code.title")} · {offer.runtime}</dd></div>
           </>
         )}
-        <div><dt>Time</dt><dd>{offer.minutes} min</dd></div>
-        <div><dt>AI budget</dt><dd>${offer.budgetUsd.toFixed(2)}, its own</dd></div>
+        <div><dt>{t("prep.practice.time")}</dt><dd>{offer.minutes} {t("common.minutes")}</dd></div>
+        <div><dt>{t("prep.practice.budget")}</dt><dd>{t("prep.practice.budgetValue", { amount: money(i18n, offer.budgetUsd) })}</dd></div>
       </dl>
       {error && <div className={prep.error} role="alert">{error}</div>}
       <div className={prep.practiceFoot}>
         {running && status?.url ? (
-          <a href={status.url} target="_blank" rel="noreferrer" className={`${ui.btn} ${ui.btnPrimary}`} data-el="open-practice">{playground ? "Open the playground" : "Open the practice run"} <ArrowSquareOut size={13} /></a>
+          <a href={status.url} target="_blank" rel="noreferrer" className={`${ui.btn} ${ui.btnPrimary}`} data-el="open-practice">{playground ? t("prep.practice.openPlayground") : t("prep.practice.openPractice")} <ArrowSquareOut size={13} /></a>
         ) : (
           <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => void start()} disabled={pending || used || status === null} data-el="start-practice">
-            {pending ? <><span className={ui.spinner} style={{ width: 12, height: 12, borderTopColor: "#fff" }} /> Starting…</> : used ? (playground ? "Playground used" : "Practice used") : playground ? "Open the playground" : "Start practice"}
+            {pending ? <><span className={ui.spinner} style={{ width: 12, height: 12, borderTopColor: "#fff" }} /> {t("prep.practice.starting")}</> : used ? (playground ? t("prep.practice.playgroundUsed") : t("prep.practice.practiceUsed")) : playground ? t("prep.practice.openPlayground") : t("prep.practice.startPractice")}
           </button>
         )}
         <span className={ui.faint} style={{ fontSize: 11.5 }} data-el="practice-status">
           {running
-            ? `${left ?? 0} min left · $${(status?.spent ?? 0).toFixed(2)} of $${(status?.budget ?? offer.budgetUsd).toFixed(2)} used`
+            ? t("prep.practice.running", { minutes: left ?? 0, spent: money(i18n, status?.spent ?? 0), budget: money(i18n, status?.budget ?? offer.budgetUsd) })
             : used
-              ? `Done: ${status?.minutesUsed ?? 0} min, ${status?.prompts ?? 0} prompt${status?.prompts === 1 ? "" : "s"}. You get one run.`
-              : "One run. It opens in a new tab and the clock starts then."}
+              ? t("prep.practice.used", { minutes: status?.minutesUsed ?? 0, n: status?.prompts ?? 0 })
+              : t("prep.practice.oneRun")}
         </span>
       </div>
     </div>

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowsInLineHorizontal, ArrowsOutLineHorizontal, Browser, Check, Clock, FileText, Flask, FolderSimple, GitDiff, GitMerge, Lock, SidebarSimple, X } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { clock } from "@/lib/format";
+import { clock, money } from "@/lib/format";
+import { useI18n } from "@/components/i18n";
+import { hasKey } from "@/lib/i18n";
 import { Keys, Shimmer, TabIndicator, spring } from "./ai";
 import { Logo, Sprout, Stopwatch } from "@/components/brand";
 import { AgentDeck, type AgentTab } from "./agent-deck";
@@ -53,6 +55,8 @@ function track(token: string, kind: string, data: Record<string, unknown>) {
 }
 
 export function Workspace({ token, sessionId }: { token: string; sessionId: string }) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const router = useRouter();
   const [state, setState] = useState<State | null>(null);
   const [left, setLeft] = useState(0);
@@ -72,7 +76,7 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
   const [searchFocus, setSearchFocus] = useState(0);
   const seenMessages = useRef(new Set<string>());
   const lastBrowse = useRef("");
-  const [agents, setAgents] = useState<AgentTab[]>([{ key: "main", name: "Main", createdAt: null, closedAt: null, mergedAt: null }]);
+  const [agents, setAgents] = useState<AgentTab[]>([{ key: "main", name: t("workspace.agentMain"), createdAt: null, closedAt: null, mergedAt: null }]);
   const [maxAgents, setMaxAgents] = useState(4);
   const [activeAgent, setActiveAgent] = useState("main");
   const [scope, setScope] = useState("main");
@@ -108,15 +112,21 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
     const res = await fetch(`/api/s/${token}/agents/${key}/merge`, { method: "POST" }).catch(() => null);
     const json = await res?.json().catch(() => ({}));
     setMerging(false);
-    const name = agents.find((a) => a.key === key)?.name ?? "the agent";
+    const who = agents.find((a) => a.key === key)?.name ?? t("workspace.theAgent");
     if (json?.ok) {
-      setMergeNote({ ok: true, text: json.files ? `Merged ${json.files} ${json.files === 1 ? "file" : "files"} from ${name} into the workspace.` : `${name} had nothing new to merge.` });
+      setMergeNote({ ok: true, text: json.files ? t("workspace.mergedFiles", { n: json.files, who }) : t("workspace.nothingToMerge", { who }) });
       setScope("main");
       void loadFiles();
-    } else setMergeNote({ ok: false, text: json?.message ?? "The merge didn't go through. Try again." });
+    } else setMergeNote({ ok: false, text: mergeProblem(json, key) });
     setMergeTick((n) => n + 1);
     await loadAgents();
   }
+  function mergeProblem(json: { conflicts?: string[]; message?: string } | undefined, key: string) {
+    if (json?.conflicts?.length) return t("workspace.mergeConflict", { files: json.conflicts.join(", "), command: `git merge agent/${key}` });
+    if (json?.message) return json.message;
+    return t("workspace.mergeFailed");
+  }
+
   const fileSource = useMemo(
     () => ({
       async read(path: string): Promise<Doc> {
@@ -303,13 +313,14 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
       <div className={`${ui.root} ${ui.loading}`}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <Sprout mood="thinking" size={112} />
-          <Shimmer>Opening your workspace</Shimmer>
+          <Shimmer>{t("workspace.opening")}</Shimmer>
         </div>
       </div>
     );
   }
 
   const low = left < 5 * 60_000;
+  const aiReason = state.ai.reason && hasKey(state.ai.reason) ? t(state.ai.reason) : state.ai.reason;
   const challenge = state.challenge;
   const isLast = state.currentIndex + 1 >= state.total;
   const playground = state.practice === "playground";
@@ -318,21 +329,21 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
   const openAgents = agents.filter((a) => !a.closedAt);
   const htmlFiles = files.filter((f) => !f.dir && kindOf(f.path) === "html").map((f) => f.path);
   const tabs: { id: Tab; label: string; icon: React.ReactNode; badge?: React.ReactNode }[] = [
-    { id: "brief", label: "Brief", icon: <FileText size={18} /> },
-    { id: "files", label: "Files", icon: <FolderSimple size={18} /> },
+    { id: "brief", label: t("workspace.tabBrief"), icon: <FileText size={18} /> },
+    { id: "files", label: t("workspace.tabFiles"), icon: <FolderSimple size={18} /> },
     {
       id: "changes",
-      label: "Changes",
+      label: t("workspace.tabChanges"),
       icon: <GitDiff size={18} />,
       badge: changes && changes.length > 0 ? <span className={ui.railBadge} style={{ background: "var(--w-accent)", color: "#fff" }}>{changes.length}</span> : null,
     },
     {
       id: "tests",
-      label: "Tests",
+      label: t("workspace.tabTests"),
       icon: <Flask size={18} />,
       badge: testOut && testOut.total > 0 ? <span className={ui.railBadge} style={{ background: testOut.passed === testOut.total ? "var(--w-ok)" : "var(--w-warn)", color: "#0b0b0d" }}>{testOut.passed}</span> : null,
     },
-    { id: "preview", label: "Browser", icon: <Browser size={18} /> },
+    { id: "preview", label: t("workspace.tabBrowser"), icon: <Browser size={18} /> },
   ];
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
@@ -344,14 +355,14 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
           <Logo variant="full" size={22} animated={false} />
         </div>
         <span className={ui.divider} />
-        <nav className={ui.steps} aria-label="Challenges" data-el="steps">
+        <nav className={ui.steps} aria-label={t("workspace.challengesLabel")} data-el="steps">
           {state.challenges.map((c, i) =>
             i < state.currentIndex ? (
-              <span key={i} className={`${ui.step} ${ui.stepDone}`} title={`${c.title} · submitted`}><Check size={11} weight="bold" /><span className={ui.stepNum} style={{ color: "inherit" }}>{String(i + 1).padStart(2, "0")}</span></span>
+              <span key={i} className={`${ui.step} ${ui.stepDone}`} title={t("workspace.stepDone", { title: c.title })}><Check size={11} weight="bold" /><span className={ui.stepNum} style={{ color: "inherit" }}>{String(i + 1).padStart(2, "0")}</span></span>
             ) : i === state.currentIndex ? (
               <span key={i} className={`${ui.step} ${ui.stepCurrent}`} aria-current="step"><span className={ui.stepNum}>{String(i + 1).padStart(2, "0")}</span><span className={ui.ellipsis}>{c.title}</span></span>
             ) : (
-              <span key={i} className={ui.step} title="Unlocks when you submit the previous one"><Lock size={11} /><span className={ui.stepNum}>{String(i + 1).padStart(2, "0")}</span></span>
+              <span key={i} className={ui.step} title={t("workspace.stepLocked")}><Lock size={11} /><span className={ui.stepNum}>{String(i + 1).padStart(2, "0")}</span></span>
             ),
           )}
         </nav>
@@ -359,32 +370,32 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
           <div className={ui.group}>
             <AnimatePresence>
               {state.watchers.length > 0 && (
-                <motion.span key="watching" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={ui.watching} data-el="being-watched" title={`${state.watchers.join(", ")} watching`}>
+                <motion.span key="watching" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className={ui.watching} data-el="being-watched" title={t("workspace.watchingTitle", { who: state.watchers.join(", ") })}>
                   <span className={ui.dot} />
-                  <span className={ui.ellipsis}>{state.watchers.length === 1 ? `${state.watchers[0].split(" ")[0]} is watching` : `${state.watchers.length} watching`}</span>
+                  <span className={ui.ellipsis}>{state.watchers.length === 1 ? t("workspace.oneWatching", { who: state.watchers[0].split(" ")[0] }) : t("workspace.manyWatching", { n: state.watchers.length })}</span>
                 </motion.span>
               )}
             </AnimatePresence>
-            {!playground && <span className={ui.rec} data-el="recording" title="Terminal, files and AI calls are recorded"><span className={ui.recDot} />Rec</span>}
+            {!playground && <span className={ui.rec} data-el="recording" title={t("workspace.recordedTitle")}><span className={ui.recDot} />{t("workspace.rec")}</span>}
           </div>
           <span className={ui.divider} />
           <div className={ui.group} style={{ gap: 16 }}>
-            <div className={ui.budget} data-el="ai-budget" title={state.ai.active ? "AI budget used by Claude Code" : state.ai.reason ?? "AI access is off"}>
+            <div className={ui.budget} data-el="ai-budget" title={state.ai.active ? t("workspace.budgetTitle") : aiReason ?? t("workspace.aiOffTitle")}>
               <div className={ui.budgetRow}>
-                <span>{state.ai.active ? "AI budget" : "AI off"}</span>
-                <span className={ui.mono} style={{ color: "var(--w-fg-2)" }}>${state.ai.spent.toFixed(2)}<span className={ui.faint}>/{state.ai.budget}</span></span>
+                <span>{t(state.ai.active ? "workspace.aiBudget" : "workspace.aiOffShort")}</span>
+                <span className={ui.mono} style={{ color: "var(--w-fg-2)" }}>{money(i18n, state.ai.spent)}<span className={ui.faint}>/{money(i18n, state.ai.budget)}</span></span>
               </div>
               <div className={ui.meter}><motion.i initial={false} animate={{ width: `${spentPct}%` }} transition={spring} style={{ background: !state.ai.active ? "var(--w-fg-4)" : spentPct > 85 ? "var(--w-err)" : undefined }} /></div>
             </div>
-            <Stopwatch progress={totalRef.current ? left / totalRef.current : 1} running={left > 0} urgent={left < 2 * 60_000} size={24} appear={false} label={`${clock(left)} left`} />
-            <motion.div className={`${ui.timer} ${low ? ui.timerLow : ""}`} role="timer" aria-label={`${clock(left)} left`} data-el="timer" animate={low ? { scale: [1, 1.05, 1] } : { scale: 1 }} transition={low ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}>
+            <Stopwatch progress={totalRef.current ? left / totalRef.current : 1} running={left > 0} urgent={left < 2 * 60_000} size={24} appear={false} label={t("workspace.timeLeft", { time: clock(left) })} />
+            <motion.div className={`${ui.timer} ${low ? ui.timerLow : ""}`} role="timer" aria-label={t("workspace.timeLeft", { time: clock(left) })} data-el="timer" animate={low ? { scale: [1, 1.05, 1] } : { scale: 1 }} transition={low ? { duration: 1, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}>
               <Clock size={14} />
               {clock(left)}
             </motion.div>
           </div>
           <span className={ui.divider} />
           <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => setConfirming(true)} data-el="submit">
-            {playground ? "End playground" : isLast ? "Submit and finish" : `Submit ${String(state.currentIndex + 1).padStart(2, "0")}`}
+            {playground ? t("workspace.endPlayground") : isLast ? t("workspace.submitAndFinish") : t("workspace.submitNumbered", { index: String(state.currentIndex + 1).padStart(2, "0") })}
           </button>
         </div>
       </header>
@@ -397,10 +408,10 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
           <motion.div key="toast" initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} transition={spring} role="status" className={ui.toast} style={{ right: (panelOpen ? width : 0) + 64 }} data-el="interviewer-message">
             <span className={ui.avatar} style={{ background: "var(--w-intv)", color: "#0b0b0d" }}>{toast.from.slice(0, 1).toUpperCase()}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11.5, color: "var(--w-intv)", fontWeight: 500 }}>{toast.from} · interviewer</div>
+              <div style={{ fontSize: 11.5, color: "var(--w-intv)", fontWeight: 500 }}>{t("workspace.fromInterviewer", { name: toast.from })}</div>
               <div style={{ marginTop: 3, lineHeight: 1.5 }}>{toast.text}</div>
             </div>
-            <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setToast(null)} aria-label="Dismiss"><X size={13} /></button>
+            <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setToast(null)} aria-label={t("workspace.dismiss")}><X size={13} /></button>
           </motion.div>
         )}
         </AnimatePresence>
@@ -409,17 +420,17 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
         {panelOpen && (
           <motion.aside key="panel" className={ui.panel} initial={{ width: 0, opacity: 0 }} animate={{ width, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={dragging ? { duration: 0 } : spring} style={{ maxWidth: "calc(100vw - 568px)", overflow: "visible" }} aria-label={current.label} data-el="side-panel">
             <div style={{ width, minWidth: MIN_PANEL, maxWidth: "calc(100vw - 568px)", height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
-            <div className={`${ui.resizer} ${dragging ? ui.resizerActive : ""}`} onPointerDown={startDrag} role="separator" aria-orientation="vertical" aria-label="Resize panel" />
+            <div className={`${ui.resizer} ${dragging ? ui.resizerActive : ""}`} onPointerDown={startDrag} role="separator" aria-orientation="vertical" aria-label={t("workspace.resizePanel")} />
             <div className={ui.panelHead}>
               <span className={ui.panelTitle}>{current.label}</span>
               {tab === "files" && <span className={ui.count}>{files.filter((f) => !f.dir).length}</span>}
-              {tab === "changes" && changes && changes.length > 0 && <span className={ui.count}>{changes.length} {changes.length === 1 ? "file" : "files"} · <span style={{ color: "var(--w-ok)" }}>+{changes.reduce((n, c) => n + c.added, 0)}</span>{changes.some((c) => c.removed > 0) && <span style={{ color: "var(--w-err)" }}> −{changes.reduce((n, c) => n + c.removed, 0)}</span>}</span>}
-              {tab === "tests" && testOut && testOut.total > 0 && <span className={`${ui.chip} ${testOut.passed === testOut.total ? ui.chipOk : ui.chipWarn}`}>{testOut.passed}/{testOut.total} passing</span>}
+              {tab === "changes" && changes && changes.length > 0 && <span className={ui.count}>{t("workspace.changedFiles", { n: changes.length })} · <span style={{ color: "var(--w-ok)" }}>+{changes.reduce((n, c) => n + c.added, 0)}</span>{changes.some((c) => c.removed > 0) && <span style={{ color: "var(--w-err)" }}> −{changes.reduce((n, c) => n + c.removed, 0)}</span>}</span>}
+              {tab === "tests" && testOut && testOut.total > 0 && <span className={`${ui.chip} ${testOut.passed === testOut.total ? ui.chipOk : ui.chipWarn}`}>{t("workspace.testsPassing", { passed: testOut.passed, total: testOut.total })}</span>}
               <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setWidth(wide ? 460 : Math.min(900, Math.round(window.innerWidth * 0.55)))} aria-label={wide ? "Narrow panel" : "Widen panel"} title={wide ? "Narrow panel" : "Widen panel"}>
+                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setWidth(wide ? 460 : Math.min(900, Math.round(window.innerWidth * 0.55)))} aria-label={t(wide ? "workspace.narrowPanel" : "workspace.widenPanel")} title={t(wide ? "workspace.narrowPanel" : "workspace.widenPanel")}>
                   {wide ? <ArrowsInLineHorizontal size={15} /> : <ArrowsOutLineHorizontal size={15} />}
                 </button>
-                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setPanelOpen(false)} aria-label="Hide panel" title="Hide panel (Cmd+B)"><SidebarSimple size={15} style={{ transform: "scaleX(-1)" }} /></button>
+                <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setPanelOpen(false)} aria-label={t("workspace.hidePanel")} title={t("workspace.hidePanelHint")}><SidebarSimple size={15} style={{ transform: "scaleX(-1)" }} /></button>
               </span>
             </div>
             <AnimatePresence mode="wait" initial={false}>
@@ -443,18 +454,18 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
                 <div className={ui.panelBody}>
                   {openAgents.length > 1 && (
                     <div className={ui.scopeBar} data-el="changes-scope">
-                      <span className={ui.segmented} role="group" aria-label="Whose changes">
+                      <span className={ui.segmented} role="group" aria-label={t("workspace.whoseChanges")}>
                         {openAgents.map((a) => (
-                          <button key={a.key} type="button" aria-pressed={scope === a.key} onClick={() => { setScope(a.key); setMergeNote(null); }}>{a.key === "main" ? "Workspace" : a.name}</button>
+                          <button key={a.key} type="button" aria-pressed={scope === a.key} onClick={() => { setScope(a.key); setMergeNote(null); }}>{a.key === "main" ? t("workspace.scopeWorkspace") : a.name}</button>
                         ))}
                       </span>
                     </div>
                   )}
                   {scope !== "main" && (
                     <div className={ui.scopeNote}>
-                      <span className={ui.muted} style={{ flex: 1 }}>What {agents.find((a) => a.key === scope)?.name} changed in its own copy, compared with the workspace when it started.</span>
+                      <span className={ui.muted} style={{ flex: 1 }}>{t("workspace.agentScopeNote", { who: agents.find((a) => a.key === scope)?.name ?? t("workspace.theAgent") })}</span>
                       <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} style={{ flex: "none" }} onClick={() => void mergeAgent(scope)} disabled={merging || !agentChanges?.length} data-el="merge-agent">
-                        <GitMerge size={13} /> {merging ? "Merging…" : "Merge into workspace"}
+                        <GitMerge size={13} /> {t(merging ? "workspace.merging" : "workspace.mergeIntoWorkspace")}
                       </button>
                     </div>
                   )}
@@ -462,7 +473,7 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
                     <div className={`${ui.banner} ${mergeNote.ok ? "" : ui.bannerWarn}`} role="status" data-el="merge-result">
                       <span className={ui.dot} style={{ color: mergeNote.ok ? "var(--w-ok)" : "var(--w-warn)" }} />
                       <span style={{ flex: 1 }}>{mergeNote.text}</span>
-                      <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setMergeNote(null)} aria-label="Dismiss"><X size={12} /></button>
+                      <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={() => setMergeNote(null)} aria-label={t("workspace.dismiss")}><X size={12} /></button>
                     </div>
                   )}
                   <ChangesPanel changes={scope === "main" ? changes : agentChanges} onOpen={scope === "main" ? openFile : undefined} who={scope === "main" ? undefined : agents.find((a) => a.key === scope)?.name} />
@@ -482,7 +493,7 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
         )}
         </AnimatePresence>
 
-        <nav className={ui.rail} aria-label="Panels">
+        <nav className={ui.rail} aria-label={t("workspace.panelsNav")}>
           {tabs.map((t) => (
             <button key={t.id} type="button" className={ui.railBtn} style={panelOpen && tab === t.id ? { color: "var(--w-accent-2)" } : undefined} onClick={() => choose(t.id)} aria-label={t.label} aria-pressed={panelOpen && tab === t.id} title={t.label} data-el={`rail-${t.id}`}>
               {panelOpen && tab === t.id && <TabIndicator id="rail-active" />}
@@ -491,35 +502,35 @@ export function Workspace({ token, sessionId }: { token: string; sessionId: stri
             </button>
           ))}
           <span className={ui.railSpacer} />
-          <button type="button" className={ui.railBtn} onClick={() => setPanelOpen((v) => !v)} aria-label={panelOpen ? "Hide panel" : "Show panel"} title={`${panelOpen ? "Hide" : "Show"} panel (Cmd+B)`}>
+          <button type="button" className={ui.railBtn} onClick={() => setPanelOpen((v) => !v)} aria-label={t(panelOpen ? "workspace.hidePanel" : "workspace.showPanel")} title={t(panelOpen ? "workspace.hidePanelHint" : "workspace.showPanelHint")}>
             <SidebarSimple size={18} style={{ transform: "scaleX(-1)" }} weight={panelOpen ? "fill" : "regular"} />
           </button>
         </nav>
       </div>
 
       <footer className={ui.statusBar}>
-        <span className={ui.statusItem}><span className={ui.dot} style={{ color: state.ai.active ? "var(--w-ok)" : "var(--w-fg-4)" }} />{state.ai.active ? "AI access on" : "AI access off"}</span>
-        <span className={ui.statusItem}>Files save automatically</span>
-        <span className={ui.statusItem} style={{ marginLeft: "auto" }}><Keys keys={["mod", "enter"]} /> run tests</span>
-        <span className={ui.statusItem}><Keys keys={["mod", "B"]} /> toggle panel</span>
+        <span className={ui.statusItem}><span className={ui.dot} style={{ color: state.ai.active ? "var(--w-ok)" : "var(--w-fg-4)" }} />{t(state.ai.active ? "workspace.aiAccessOn" : "workspace.aiAccessOff")}</span>
+        <span className={ui.statusItem}>{t("workspace.autoSave")}</span>
+        <span className={ui.statusItem} style={{ marginLeft: "auto" }}><Keys keys={["mod", "enter"]} /> {t("workspace.runTestsHint")}</span>
+        <span className={ui.statusItem}><Keys keys={["mod", "B"]} /> {t("workspace.togglePanelHint")}</span>
       </footer>
 
       {confirming && (
         <div className={ui.overlay} onClick={() => !submitting && setConfirming(false)}>
           <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" className={ui.modal} onClick={(e) => e.stopPropagation()}>
-            <div id="confirm-title" className={ui.modalTitle}>{playground ? "End the playground?" : isLast ? "Submit and finish the session?" : `Submit challenge ${String(state.currentIndex + 1).padStart(2, "0")}?`}</div>
+            <div id="confirm-title" className={ui.modalTitle}>{playground ? t("workspace.confirmEndPlayground") : isLast ? t("workspace.confirmFinish") : t("workspace.confirmSubmit", { index: String(state.currentIndex + 1).padStart(2, "0") })}</div>
             <p className={ui.muted} style={{ marginTop: 8, lineHeight: 1.6 }}>
-              {playground ? "The sandbox closes and its AI access turns off. Nothing here counts toward your interview, and you can't reopen it." : <>You can&apos;t come back to it. {isLast ? "This is the last one: AI access turns off and the session ends." : "The next challenge opens right away with the time you have left, and the agent starts fresh."}</>}
+              {playground ? t("workspace.confirmPlaygroundText") : `${t("workspace.confirmNoReturn")} ${t(isLast ? "workspace.confirmLast" : "workspace.confirmNext")}`}
             </p>
             {testOut && testOut.total > 0 && (
               <div className={ui.callout} style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <span className={`${ui.chip} ${testOut.passed === testOut.total ? ui.chipOk : ui.chipWarn}`}>{testOut.passed}/{testOut.total}</span>
-                <span className={ui.muted}>visible tests passing on your last run</span>
+                <span className={ui.muted}>{t("workspace.lastRunPassing")}</span>
               </div>
             )}
             <div className={ui.modalActions}>
-              <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => setConfirming(false)} disabled={submitting}>Keep working</button>
-              <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => void submit()} disabled={submitting} autoFocus>{submitting ? (playground ? "Closing…" : "Submitting…") : playground ? "End playground" : "Submit"}</button>
+              <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => setConfirming(false)} disabled={submitting}>{t("workspace.keepWorking")}</button>
+              <button type="button" className={`${ui.btn} ${ui.btnPrimary}`} onClick={() => void submit()} disabled={submitting} autoFocus>{t(submitting ? (playground ? "workspace.closing" : "workspace.submitting") : playground ? "workspace.endPlayground" : "workspace.submit")}</button>
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/components/i18n";
+
 import { useEffect, useId, useRef, useState } from "react";
 
 export type SelectOption = { value: string; label: React.ReactNode; hint?: React.ReactNode; icon?: React.ReactNode; text?: string };
@@ -34,7 +36,8 @@ function Tick() {
   );
 }
 
-export function Select({ name, value, defaultValue, onChange, options, placeholder = "Select…", ariaLabel, className = "", size = "md", disabled, align = "start" }: Props) {
+export function Select({ name, value, defaultValue, onChange, options, placeholder, ariaLabel, className = "", size = "md", disabled, align = "start" }: Props) {
+  const { t } = useI18n();
   const [inner, setInner] = useState(defaultValue ?? options[0]?.value ?? "");
   const current = value ?? inner;
   const [open, setOpen] = useState(false);
@@ -119,7 +122,7 @@ export function Select({ name, value, defaultValue, onChange, options, placehold
         onKeyDown={onKey}
       >
         {selected?.icon}
-        <span className="value" style={{ color: selected ? undefined : "var(--text-3)" }}>{selected ? selected.label : placeholder}</span>
+        <span className="value" style={{ color: selected ? undefined : "var(--text-3)" }}>{selected ? selected.label : (placeholder ?? t("select.placeholder"))}</span>
         <span className="chev"><Chevron /></span>
       </button>
       {open && (

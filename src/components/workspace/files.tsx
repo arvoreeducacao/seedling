@@ -27,10 +27,12 @@ import {
   SidebarSimple,
   X,
 } from "@phosphor-icons/react";
+import { useI18n } from "@/components/i18n";
 import { defineEditorTheme, editorTheme } from "./editor-theme";
 import { extensionOf, filterTree, formatBytes, hasRenderedView, kindOf, languageOf, type FileKind } from "./file-kinds";
 import { DelimitedTable, ImageView, JsonTree, MarkdownDoc, PdfView, Placeholder } from "./viewers";
 import { Keys } from "./ai";
+import type { T } from "@/lib/i18n";
 import ui from "./ui.module.css";
 
 const Editor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
@@ -250,6 +252,7 @@ function useFreshPaths(files: Entry[]) {
 }
 
 function TreeList({ files, active, query, collapsed, fresh, revealed, onToggle, onOpen }: { files: Entry[]; active: string | null; query: string; collapsed: Set<string>; fresh: Set<string>; revealed: string | null; onToggle: (path: string) => void; onOpen: (path: string) => void }) {
+  const { t } = useI18n();
   const filtered = useMemo(() => filterTree(files, query), [files, query]);
   const searching = Boolean(query.trim());
   const visible = searching ? filtered : filtered.filter((f) => ![...collapsed].some((c) => f.path.startsWith(`${c}/`)));
@@ -258,10 +261,10 @@ function TreeList({ files, active, query, collapsed, fresh, revealed, onToggle, 
     if (!revealed) return;
     list.current?.querySelector(`[data-path="${CSS.escape(revealed)}"]`)?.scrollIntoView({ block: "nearest" });
   }, [revealed]);
-  if (!files.length) return <Placeholder icon={<FolderSimple size={18} />} title="No files yet">Files show up here as soon as they exist on disk.</Placeholder>;
-  if (searching && !filtered.length) return <Placeholder icon={<MagnifyingGlass size={18} />} title="No matching files">Nothing in the workspace has &quot;{query.trim()}&quot; in its path.</Placeholder>;
+  if (!files.length) return <Placeholder icon={<FolderSimple size={18} />} title={t("workspace.noFiles")}>{t("workspace.noFilesText")}</Placeholder>;
+  if (searching && !filtered.length) return <Placeholder icon={<MagnifyingGlass size={18} />} title={t("workspace.noMatch")}>{t("workspace.noMatchText", { query: query.trim() })}</Placeholder>;
   return (
-    <div ref={list} className={`${ui.scroll} ${ui.tree}`} data-el="files" role="tree" aria-label="Workspace files">
+    <div ref={list} className={`${ui.scroll} ${ui.tree}`} data-el="files" role="tree" aria-label={t("workspace.filesTreeLabel")}>
       {visible.map((f) => {
         const depth = f.path.split("/").length - 1;
         const name = f.path.split("/").pop() ?? f.path;
@@ -282,7 +285,7 @@ function TreeList({ files, active, query, collapsed, fresh, revealed, onToggle, 
             <span className={ui.treeIcon}>{f.dir ? isOpen ? <CaretDown size={11} weight="bold" /> : <CaretRight size={11} weight="bold" /> : <span style={{ width: 11 }} />}</span>
             <span className={ui.treeIcon} style={{ color: f.dir ? "var(--w-accent-2)" : undefined }}>{f.dir ? <FolderSimple size={14} weight="fill" /> : iconFor(f.path)}</span>
             <span className={ui.ellipsis}><Highlight text={name} query={searching ? query : ""} /></span>
-            {fresh.has(f.path) && <span className={ui.freshDot} aria-label="Just changed" />}
+            {fresh.has(f.path) && <span className={ui.freshDot} aria-label={t("workspace.justChanged")} />}
           </button>
         );
       })}
@@ -293,24 +296,25 @@ function TreeList({ files, active, query, collapsed, fresh, revealed, onToggle, 
 type Mode = "view" | "source";
 
 function ViewerBody({ path, doc, mode, readOnly, tabs, generation, onPaste, onOpenPath }: { path: string; doc: Doc | undefined; mode: Mode; readOnly: boolean; tabs: FileTabs; generation: number; onPaste?: (chars: number) => void; onOpenPath: (path: string) => void }) {
+  const { t } = useI18n();
   const kind = kindOf(path);
   const name = path.split("/").pop() ?? path;
   const download = tabs.source.rawUrl(path, doc?.mtime, true);
   if (!doc) return <div className={ui.empty}><span className={ui.spinner} /></div>;
-  if (doc.missing) return <Placeholder icon={<FileX size={18} />} title="This file is gone">It was deleted or renamed on disk.</Placeholder>;
+  if (doc.missing) return <Placeholder icon={<FileX size={18} />} title={t("workspace.fileGone")}>{t("workspace.fileGoneText")}</Placeholder>;
   if (kind === "image") return <ImageView key={`${path}:${doc.mtime}`} src={tabs.source.rawUrl(path, doc.mtime)} name={name} size={doc.size} />;
   if (kind === "pdf") return <PdfView key={`${path}:${doc.mtime}`} src={tabs.source.rawUrl(path, doc.mtime)} name={name} />;
   if (doc.tooLarge) {
     return (
-      <Placeholder icon={<FileDashed size={18} />} title="Too large to open here" download={download}>
-        <span>{doc.size !== undefined ? `${formatBytes(doc.size)}. ` : ""}Files over 1 MB stay on disk; the agent can still read them.</span>
+      <Placeholder icon={<FileDashed size={18} />} title={t("workspace.tooLargeTitle")} download={download}>
+        <span>{doc.size !== undefined ? t("workspace.tooLargeTextWithSize", { size: formatBytes(doc.size) }) : t("workspace.tooLargeText")}</span>
       </Placeholder>
     );
   }
   if (doc.binary || doc.content === null) {
     return (
-      <Placeholder icon={<FileDashed size={18} />} title="Binary file" download={download}>
-        <span>{doc.size !== undefined ? `${formatBytes(doc.size)} of ` : ""}data that is not text.</span>
+      <Placeholder icon={<FileDashed size={18} />} title={t("workspace.binaryFile")} download={download}>
+        <span>{doc.size !== undefined ? t("workspace.binaryTextWithSize", { size: formatBytes(doc.size) }) : t("workspace.binaryText")}</span>
       </Placeholder>
     );
   }
@@ -341,9 +345,9 @@ function ViewerBody({ path, doc, mode, readOnly, tabs, generation, onPaste, onOp
   );
 }
 
-function modeLabels(kind: FileKind, readOnly: boolean): [string, string] {
-  const view = kind === "markdown" ? "Preview" : kind === "json" ? "Tree" : kind === "svg" ? "Image" : "Table";
-  return [view, readOnly ? "Source" : "Edit"];
+function modeLabels(t: T, kind: FileKind, readOnly: boolean): [string, string] {
+  const view = kind === "markdown" ? "workspace.modePreview" : kind === "json" ? "workspace.modeTree" : kind === "svg" ? "workspace.modeImage" : "workspace.modeTable";
+  return [t(view), t(readOnly ? "workspace.modeSource" : "workspace.modeEdit")];
 }
 
 export function FilesView({
@@ -367,6 +371,7 @@ export function FilesView({
   onOpenInBrowser?: (path: string) => void;
   toolbar?: ReactNode;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [treeOpen, setTreeOpen] = useState(true);
@@ -434,18 +439,18 @@ export function FilesView({
                   if (first) openPath(first.path);
                 }
               }}
-              placeholder={`Search ${leaves.length} ${leaves.length === 1 ? "file" : "files"}`}
-              aria-label="Search files"
+              placeholder={t("workspace.searchFiles", { n: leaves.length })}
+              aria-label={t("workspace.searchFilesLabel")}
               data-el="file-search"
               spellCheck={false}
             />
             {query ? (
-              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} style={{ width: 22, height: 22 }} onClick={() => setQuery("")} aria-label="Clear search"><X size={12} /></button>
+              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} style={{ width: 22, height: 22 }} onClick={() => setQuery("")} aria-label={t("workspace.clearSearch")}><X size={12} /></button>
             ) : (
               <Keys keys={["mod", "P"]} />
             )}
             {treeOnly && active && (
-              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} style={{ width: 24, height: 24 }} onClick={() => setTreeOpen(false)} aria-label="Back to the open file" title="Back to the open file"><SidebarSimple size={14} /></button>
+              <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} style={{ width: 24, height: 24 }} onClick={() => setTreeOpen(false)} aria-label={t("workspace.backToFile")} title={t("workspace.backToFile")}><SidebarSimple size={14} /></button>
             )}
           </div>
           <TreeList
@@ -469,8 +474,8 @@ export function FilesView({
       )}
       {!treeOnly && (
         <div className={ui.viewerCol}>
-          <div className={ui.fileTabs} role="tablist" aria-label="Open files">
-            <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn} ${ui.fileTabsToggle}`} onClick={() => setTreeOpen((v) => !v)} aria-label={showTree ? "Hide file tree" : "Show file tree"} aria-pressed={showTree} title={showTree ? "Hide file tree" : "Show file tree"}>
+          <div className={ui.fileTabs} role="tablist" aria-label={t("workspace.openFilesLabel")}>
+            <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn} ${ui.fileTabsToggle}`} onClick={() => setTreeOpen((v) => !v)} aria-label={t(showTree ? "workspace.hideTree" : "workspace.showTree")} aria-pressed={showTree} title={t(showTree ? "workspace.hideTree" : "workspace.showTree")}>
               <SidebarSimple size={15} weight={showTree ? "fill" : "regular"} />
             </button>
             <AnimatePresence initial={false}>
@@ -485,7 +490,7 @@ export function FilesView({
                       <span className={ui.ellipsis}>{name}</span>
                       {(names.get(name) ?? 0) > 1 && parent && <span className={ui.faint} style={{ fontSize: 11 }}>{parent}</span>}
                     </button>
-                    <button type="button" className={ui.fileTabClose} onClick={() => tabs.close(path)} aria-label={`Close ${name}`}><X size={11} /></button>
+                    <button type="button" className={ui.fileTabClose} onClick={() => tabs.close(path)} aria-label={t("workspace.closeNamed", { name })}><X size={11} /></button>
                   </motion.div>
                 );
               })}
@@ -494,45 +499,45 @@ export function FilesView({
           {active ? (
             <>
               <div className={ui.fileBar}>
-                <nav className={ui.breadcrumb} aria-label="File path" data-el="breadcrumb">
+                <nav className={ui.breadcrumb} aria-label={t("workspace.filePath")} data-el="breadcrumb">
                   {active.split("/").map((segment, i, all) => {
                     const sub = all.slice(0, i + 1).join("/");
                     const last = i === all.length - 1;
                     return (
                       <span key={sub} className={ui.crumb}>
                         {i > 0 && <CaretRight size={10} className={ui.crumbSep} />}
-                        {last ? <b>{segment}</b> : <button type="button" onClick={() => reveal(sub)} title={`Show ${sub} in the tree`}>{segment}</button>}
+                        {last ? <b>{segment}</b> : <button type="button" onClick={() => reveal(sub)} title={t("workspace.showInTree", { path: sub })}>{segment}</button>}
                       </span>
                     );
                   })}
                 </nav>
                 <span className={ui.fileActions}>
                   {hasRenderedView(kind) && typeof doc?.content === "string" && !doc.tooLarge && (
-                    <span className={ui.segmented} role="group" aria-label="View mode" data-el="view-mode">
+                    <span className={ui.segmented} role="group" aria-label={t("workspace.viewMode")} data-el="view-mode">
                       {(["view", "source"] as const).map((m, i) => (
                         <button key={m} type="button" aria-pressed={mode === m} onClick={() => setModes((all) => ({ ...all, [active]: m }))}>
-                          {modeLabels(kind, readOnly)[i]}
+                          {modeLabels(t, kind, readOnly)[i]}
                         </button>
                       ))}
                     </span>
                   )}
                   {kind === "html" && onOpenInBrowser && (
-                    <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => onOpenInBrowser(active)} data-el="open-in-browser"><Browser size={13} /> Open</button>
+                    <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => onOpenInBrowser(active)} data-el="open-in-browser"><Browser size={13} /> {t("common.open")}</button>
                   )}
                   {showsEditor && (
                     <span className={ui.saveState} data-el="save-state" style={{ marginLeft: 4 }}>
                       <span className={ui.dot} style={{ color: tabs.saved === "error" ? "var(--w-err)" : tabs.saved === "saving" ? "var(--w-warn)" : tabs.saved === "synced" ? "var(--w-agent)" : "var(--w-ok)" }} />
-                      {tabs.saved === "saving" ? "Saving" : tabs.saved === "error" ? "Not saved" : tabs.saved === "synced" ? "Updated on disk" : "Saved"}
+                      {t(tabs.saved === "saving" ? "workspace.savingShort" : tabs.saved === "error" ? "workspace.notSaved" : tabs.saved === "synced" ? "workspace.updatedOnDisk" : "workspace.savedShort")}
                     </span>
                   )}
-                  {readOnly && doc && !doc.missing && <a className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} href={tabs.source.rawUrl(active, doc.mtime, true)} download aria-label="Download" title="Download"><DownloadSimple size={14} /></a>}
+                  {readOnly && doc && !doc.missing && <a className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} href={tabs.source.rawUrl(active, doc.mtime, true)} download aria-label={t("workspace.download")} title={t("workspace.download")}><DownloadSimple size={14} /></a>}
                 </span>
               </div>
               <ViewerBody key={active} path={active} doc={doc} mode={mode} readOnly={readOnly} tabs={tabs} generation={generation} onPaste={onPaste} onOpenPath={openPath} />
             </>
           ) : (
-            <Placeholder icon={<FileCode size={18} />} title="Pick a file">
-              <span>Markdown, tables, JSON, images and PDFs open rendered. Everything else opens in the editor.</span>
+            <Placeholder icon={<FileCode size={18} />} title={t("workspace.pickFile")}>
+              <span>{t("workspace.pickFileText")}</span>
             </Placeholder>
           )}
         </div>

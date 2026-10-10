@@ -58,11 +58,16 @@ export const challenges = sqliteTable("challenges", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
 });
 
+export type ChallengeCheckMessage = { key: string; params?: Record<string, string | number> };
+
 export type ChallengeCheck = {
   key: "reference-passes" | "starter-fails" | "no-secrets" | "statement-leak";
   ok: boolean;
-  title: string;
-  detail: string;
+  title?: string;
+  detail?: string;
+  titleMessage?: ChallengeCheckMessage;
+  detailMessage?: ChallengeCheckMessage;
+  detailFindings?: ChallengeCheckMessage[];
 };
 
 export const challengeFiles = sqliteTable(
@@ -95,6 +100,7 @@ export const sessions = sqliteTable("sessions", {
   candidateEmail: text("candidate_email").notNull(),
   candidateName: text("candidate_name"),
   mode: text("mode", { enum: ["live", "async"] }).notNull().default("live"),
+  locale: text("locale", { enum: ["en", "pt"] }).notNull().default("en"),
   inviteTokenHash: text("invite_token_hash").notNull(),
   inviteExpiresAt: integer("invite_expires_at", { mode: "timestamp_ms" }).notNull(),
   candidateCookieHash: text("candidate_cookie_hash"),

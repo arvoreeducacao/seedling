@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
+import { useI18n } from "@/components/i18n";
+import type { Key } from "@/lib/i18n";
 
 function GoogleMark() {
   return (
@@ -22,16 +24,17 @@ function GithubMark() {
   );
 }
 
-const messages: Record<string, string> = {
-  INVALID_EMAIL_OR_PASSWORD: "That email and password don't match.",
-  USER_ALREADY_EXISTS: "An account with this email already exists. Sign in instead.",
-  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "An account with this email already exists. Sign in instead.",
-  PASSWORD_TOO_SHORT: "Use at least 8 characters for the password.",
-  EMAIL_NOT_VERIFIED: "Confirm your email first. We sent you a new link.",
-  SIGNUP_CLOSED: "This workspace is invite-only. Ask an admin for an invite link.",
+const messages: Record<string, Key> = {
+  INVALID_EMAIL_OR_PASSWORD: "server.authBadCredentials",
+  USER_ALREADY_EXISTS: "server.authExists",
+  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "server.authExists",
+  PASSWORD_TOO_SHORT: "server.authShortPassword",
+  EMAIL_NOT_VERIFIED: "server.authNotVerified",
+  SIGNUP_CLOSED: "server.authSignupClosed",
 };
 
 export function LoginForm({ google, github, invite, verifyByEmail }: { google: boolean; github: boolean; invite: { token: string; email: string | null } | null; verifyByEmail: boolean }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<"signin" | "signup">(invite ? "signup" : "signin");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
@@ -48,7 +51,8 @@ export function LoginForm({ google, github, invite, verifyByEmail }: { google: b
         ? await authClient.signIn.email({ email, password })
         : await authClient.signUp.email({ email, password, name, fetchOptions: invite ? { headers: { "x-seedling-invite": invite.token } } : undefined });
     if (result.error) {
-      setError(messages[result.error.code ?? ""] ?? result.error.message ?? "Couldn't sign you in. Try again.");
+      const known = messages[result.error.code ?? ""];
+      setError(known ? t(known) : (result.error.message ?? t("server.authFailed")));
       setBusy(null);
       return;
     }
@@ -72,44 +76,44 @@ export function LoginForm({ google, github, invite, verifyByEmail }: { google: b
           {google && (
             <button type="button" data-testid="login-google" className="btn btn-white btn-lg btn-block" disabled={busy !== null} onClick={() => social("google")}>
               <GoogleMark />
-              {busy === "google" ? "Redirecting…" : "Continue with Google"}
+              {busy === "google" ? t("server.loginRedirecting") : t("server.loginGoogle")}
             </button>
           )}
           {github && (
             <button type="button" data-testid="login-github" className="btn btn-lg btn-block" disabled={busy !== null} onClick={() => social("github")}>
               <GithubMark />
-              {busy === "github" ? "Redirecting…" : "Continue with GitHub"}
+              {busy === "github" ? t("server.loginRedirecting") : t("server.loginGithub")}
             </button>
           )}
         </div>
       )}
-      {(google || github) && <div className="or-divider">or</div>}
+      {(google || github) && <div className="or-divider">{t("server.loginOr")}</div>}
       <form action={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {mode === "signup" && (
           <label className="field">
-            <span>Name</span>
+            <span>{t("server.loginName")}</span>
             <input className="input input-lg" name="name" autoComplete="name" placeholder="Ada Lovelace" />
           </label>
         )}
         <label className="field">
-          <span>Email</span>
-          <input className="input input-lg" name="email" type="email" required autoComplete="email" placeholder="you@company.com" defaultValue={invite?.email ?? undefined} readOnly={Boolean(invite?.email) && mode === "signup"} />
+          <span>{t("server.loginEmail")}</span>
+          <input className="input input-lg" name="email" type="email" required autoComplete="email" placeholder={t("server.loginEmailPlaceholder")} defaultValue={invite?.email ?? undefined} readOnly={Boolean(invite?.email) && mode === "signup"} />
         </label>
         <label className="field">
-          <span>Password</span>
-          <input className="input input-lg" name="password" type="password" required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder={mode === "signup" ? "At least 8 characters" : undefined} />
+          <span>{t("server.loginPassword")}</span>
+          <input className="input input-lg" name="password" type="password" required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder={mode === "signup" ? t("server.loginPasswordHint") : undefined} />
         </label>
-        {mode === "signup" && !invite && !verifyByEmail && <div className="notice" role="note">New interviewer accounts are created from an invite link an admin sends you.</div>}
-        {sent && <div className="notice notice-accent" role="status">Check {sent} for a link to confirm your email, then sign in.</div>}
+        {mode === "signup" && !invite && !verifyByEmail && <div className="notice" role="note">{t("server.loginInviteOnly")}</div>}
+        {sent && <div className="notice notice-accent" role="status">{t("server.loginCheckEmail", { email: sent })}</div>}
         {error && <div className="notice notice-err" role="alert">{error}</div>}
         <button className="btn btn-primary btn-lg btn-block" disabled={busy !== null} style={{ marginTop: 4 }} data-testid="login-email">
-          {busy === "email" ? (mode === "signin" ? "Signing in…" : "Creating account…") : mode === "signin" ? "Sign in" : "Create account"}
+          {busy === "email" ? (mode === "signin" ? t("server.loginSigningIn") : t("server.loginCreating")) : mode === "signin" ? t("server.loginSignIn") : t("server.loginCreateAccount")}
         </button>
       </form>
       <p className="faint" style={{ textAlign: "center", fontSize: 12.5 }}>
-        {mode === "signin" ? "No account yet? " : "Already have an account? "}
+        {mode === "signin" ? t("server.loginNoAccount") : t("server.loginHaveAccount")}
         <button type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }} style={{ background: "none", border: 0, padding: 0, color: "var(--text)", fontWeight: 500 }} className="hover:underline">
-          {mode === "signin" ? "Create one" : "Sign in"}
+          {mode === "signin" ? t("server.loginCreateOne") : t("server.loginSignIn")}
         </button>
       </p>
     </div>

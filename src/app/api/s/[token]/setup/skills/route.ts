@@ -9,15 +9,15 @@ async function skillsFrom(req: Request) {
   const type = req.headers.get("content-type") ?? "";
   if (type.includes("multipart/form-data")) {
     const length = Number(req.headers.get("content-length") ?? 0);
-    if (length > SETUP_LIMITS.totalBytes + 64 * 1024) throw new SetupError(`The zip is larger than ${SETUP_LIMITS.totalBytes / 1024 / 1024} MB.`);
+    if (length > SETUP_LIMITS.totalBytes + 64 * 1024) throw new SetupError("setup.zipTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
     const form = await req.formData().catch(() => null);
     const file = form?.get("file");
-    if (!file || typeof file === "string") throw new SetupError("Choose a .zip file.");
-    if (file.size > SETUP_LIMITS.totalBytes) throw new SetupError(`The zip is larger than ${SETUP_LIMITS.totalBytes / 1024 / 1024} MB.`);
+    if (!file || typeof file === "string") throw new SetupError("setup.zipChooseFile");
+    if (file.size > SETUP_LIMITS.totalBytes) throw new SetupError("setup.zipTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
     return readSkillZip(Buffer.from(await file.arrayBuffer()), file.name).skills;
   }
   const body = (await req.json().catch(() => null)) as { name?: unknown; content?: unknown } | null;
-  if (!body) throw new SetupError("Send a zip or the content of a SKILL.md.");
+  if (!body) throw new SetupError("setup.zipOrSkillMd");
   return [pastedSkill(body.name, body.content)];
 }
 

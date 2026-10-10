@@ -21,7 +21,7 @@ async function passForRestart(session: Session) {
   if (budget <= 0) return "";
   await db
     .update(schema.passes)
-    .set({ revokedAt: new Date(), revokedReason: "replaced after the sandbox restarted" })
+    .set({ revokedAt: new Date(), revokedReason: "workspace.reason.restarted" })
     .where(and(eq(schema.passes.sessionId, session.id), isNull(schema.passes.revokedAt)));
   const token = await issuePass(session.id, end, budget);
   await passStore.set(session.id, token);

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { CANDIDATE_COOKIE, candidateOwns, sessionByInvite, type Session } from "@/lib/sessions";
+import { getI18n } from "@/lib/i18n/server";
 import { SetupError } from "./validate";
 import { setupView } from "./store";
 
@@ -13,12 +14,14 @@ export async function setupAccess(token: string): Promise<SetupAccess | null> {
   return candidateOwns(session, jar.get(CANDIDATE_COOKIE)?.value) ? { session, editable: false } : null;
 }
 
-export function denied() {
-  return Response.json({ error: "invalid or closed session" }, { status: 401 });
+export async function denied() {
+  const { t } = await getI18n();
+  return Response.json({ error: t("setup.sessionInvalid") }, { status: 401 });
 }
 
-export function locked() {
-  return Response.json({ error: "Your setup is locked once the interview starts." }, { status: 409 });
+export async function locked() {
+  const { t } = await getI18n();
+  return Response.json({ error: t("setup.lockedError") }, { status: 409 });
 }
 
 export async function respond(access: SetupAccess) {
@@ -27,12 +30,13 @@ export async function respond(access: SetupAccess) {
 
 export async function attempt(access: SetupAccess, work: () => Promise<unknown>) {
   if (!access.editable) return locked();
+  const { t } = await getI18n();
   try {
     await work();
   } catch (error) {
-    if (error instanceof SetupError) return Response.json({ error: error.message }, { status: 400 });
+    if (error instanceof SetupError) return Response.json({ error: t(error.key, error.params) }, { status: 400 });
     console.error("[seedling] setup update failed", access.session.id);
-    return Response.json({ error: "Could not save your setup." }, { status: 500 });
+    return Response.json({ error: t("setup.saveFailed") }, { status: 500 });
   }
   return respond(access);
 }

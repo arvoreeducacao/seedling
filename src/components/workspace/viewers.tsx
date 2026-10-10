@@ -2,8 +2,10 @@
 
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { CaretDown, CaretRight, DownloadSimple, FileDashed, ImageBroken, WarningCircle } from "@phosphor-icons/react";
+import { useI18n } from "@/components/i18n";
 import { parseBlocks } from "./markdown-parse";
 import { formatBytes, linkKind, parseDelimited, resolveRelative } from "./file-kinds";
+import { number } from "@/lib/format";
 import ui from "./ui.module.css";
 
 type DocLinks = { path: string; rawUrl: (path: string) => string; onOpenPath: (path: string) => void };
@@ -40,17 +42,19 @@ function richInline(text: string, links: DocLinks): ReactNode[] {
 }
 
 function ListItem({ text, links }: { text: string; links: DocLinks }) {
+  const { t } = useI18n();
   const task = text.match(/^\[([ xX])\]\s+(.*)$/);
   if (!task) return <li>{richInline(text, links)}</li>;
   return (
     <li className={ui.docTask}>
-      <input type="checkbox" checked={task[1] !== " "} readOnly disabled className={ui.check} aria-label={task[1] !== " " ? "Done" : "Not done"} />
+      <input type="checkbox" checked={task[1] !== " "} readOnly disabled className={ui.check} aria-label={t(task[1] !== " " ? "workspace.taskDone" : "workspace.taskNotDone")} />
       <span>{richInline(task[2], links)}</span>
     </li>
   );
 }
 
 export function MarkdownDoc({ text, path, rawUrl, onOpenPath }: { text: string } & DocLinks) {
+  const { t } = useI18n();
   const blocks = useMemo(() => parseBlocks(text), [text]);
   const links = { path, rawUrl, onOpenPath };
   return (
@@ -80,7 +84,7 @@ export function MarkdownDoc({ text, path, rawUrl, onOpenPath }: { text: string }
           }
           return <p key={i}>{block.text.split("\n").map((line, j) => <Fragment key={j}>{j > 0 && <br />}{richInline(line, links)}</Fragment>)}</p>;
         })}
-        {!blocks.length && <p className={ui.faint}>This file is empty.</p>}
+        {!blocks.length && <p className={ui.faint}>{t("workspace.emptyFileText")}</p>}
       </article>
     </div>
   );
@@ -89,24 +93,26 @@ export function MarkdownDoc({ text, path, rawUrl, onOpenPath }: { text: string }
 const MAX_TABLE_ROWS = 2000;
 
 export function DelimitedTable({ text, delimiter }: { text: string; delimiter: string }) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const { rows, truncated } = useMemo(() => parseDelimited(text, delimiter, MAX_TABLE_ROWS + 1), [text, delimiter]);
   const [header, ...body] = rows;
   const shown = body.slice(0, MAX_TABLE_ROWS);
   const total = useMemo(() => (truncated || body.length > MAX_TABLE_ROWS ? parseDelimited(text, delimiter).rows.length - 1 : body.length), [text, delimiter, truncated, body.length]);
-  if (!header) return <Placeholder icon={<FileDashed size={18} />} title="This file is empty" />;
+  if (!header) return <Placeholder icon={<FileDashed size={18} />} title={t("workspace.emptyFile")} />;
   const columns = Math.max(header.length, ...shown.map((r) => r.length));
   return (
     <div className={ui.panelBody} data-el="table-view">
       <div className={ui.viewerMeta}>
-        <span><b>{total.toLocaleString("en-US")}</b> {total === 1 ? "row" : "rows"}</span>
-        <span><b>{columns}</b> {columns === 1 ? "column" : "columns"}</span>
-        {total > shown.length && <span className={ui.faint}>showing the first {shown.length.toLocaleString("en-US")}</span>}
+        <span><b>{number(i18n, total)}</b> {t("workspace.rows", { n: total })}</span>
+        <span><b>{columns}</b> {t("workspace.columns", { n: columns })}</span>
+        {total > shown.length && <span className={ui.faint}>{t("workspace.showingFirst", { n: number(i18n, shown.length) })}</span>}
       </div>
       <div className={ui.tableScroll}>
         <table className={ui.dataTable}>
           <thead>
             <tr>
-              <th className={ui.rowNo} aria-label="Row" />
+              <th className={ui.rowNo} aria-label={t("workspace.rowLabel")} />
               {Array.from({ length: columns }, (_, j) => <th key={j} title={header[j]}>{header[j] ?? ""}</th>)}
             </tr>
           </thead>
@@ -137,6 +143,7 @@ function JsonValue({ value }: { value: Json }) {
 }
 
 function JsonNode({ name, value, depth, last }: { name: string | null; value: Json; depth: number; last: boolean }) {
+  const { t } = useI18n();
   const branch = value !== null && typeof value === "object";
   const [open, setOpen] = useState(depth < 2);
   const [limit, setLimit] = useState(MAX_CHILDREN);
@@ -153,14 +160,14 @@ function JsonNode({ name, value, depth, last }: { name: string | null; value: Js
         <span className={ui.treeIcon}>{open ? <CaretDown size={11} weight="bold" /> : <CaretRight size={11} weight="bold" />}</span>
         {label}
         <span className={ui.faint}>{openMark}</span>
-        {!open && <><span className={ui.jsonSummary}>{entries.length} {isArray ? (entries.length === 1 ? "item" : "items") : entries.length === 1 ? "key" : "keys"}</span><span className={ui.faint}>{closeMark}{!last && ","}</span></>}
+        {!open && <><span className={ui.jsonSummary}>{t(isArray ? "workspace.jsonItems" : "workspace.jsonKeys", { n: entries.length })}</span><span className={ui.faint}>{closeMark}{!last && ","}</span></>}
       </button>
       {open && (
         <>
           {entries.slice(0, limit).map(([key, child], i) => <JsonNode key={key} name={isArray ? null : JSON.stringify(key)} value={child} depth={depth + 1} last={i === entries.length - 1} />)}
           {entries.length > limit && (
             <button type="button" className={`${ui.jsonRow} ${ui.jsonMore}`} style={{ paddingLeft: (depth + 1) * 16 + 18 }} onClick={() => setLimit((n) => n + MAX_CHILDREN)}>
-              Show {Math.min(MAX_CHILDREN, entries.length - limit)} more of {entries.length - limit}
+              {t("workspace.showMoreOf", { n: Math.min(MAX_CHILDREN, entries.length - limit), total: entries.length - limit })}
             </button>
           )}
           <div className={ui.jsonRow} style={{ paddingLeft: depth * 16 + 18 }}><span className={ui.faint}>{closeMark}{!last && ","}</span></div>
@@ -171,18 +178,19 @@ function JsonNode({ name, value, depth, last }: { name: string | null; value: Js
 }
 
 export function JsonTree({ text }: { text: string }) {
+  const { t } = useI18n();
   const parsed = useMemo(() => {
     try {
       return { ok: true as const, value: JSON.parse(text) as Json };
     } catch (error) {
-      return { ok: false as const, message: error instanceof Error ? error.message : "invalid JSON" };
+      return { ok: false as const, message: error instanceof Error ? error.message : null };
     }
   }, [text]);
   if (!parsed.ok) {
     return (
-      <Placeholder icon={<WarningCircle size={18} />} title="This JSON does not parse">
-        <span className={ui.mono} style={{ fontSize: 11.5 }}>{parsed.message}</span>
-        <span>Switch to the source view to see the text.</span>
+      <Placeholder icon={<WarningCircle size={18} />} title={t("workspace.jsonNoParse")}>
+        <span className={ui.mono} style={{ fontSize: 11.5 }}>{parsed.message ?? t("workspace.invalidJson")}</span>
+        <span>{t("workspace.jsonSourceHint")}</span>
       </Placeholder>
     );
   }
@@ -194,9 +202,10 @@ export function JsonTree({ text }: { text: string }) {
 }
 
 export function ImageView({ src, name, size }: { src: string; name: string; size?: number }) {
+  const { t } = useI18n();
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const [failed, setFailed] = useState(false);
-  if (failed) return <Placeholder icon={<ImageBroken size={18} />} title="This image could not be shown">{size !== undefined && <span>{formatBytes(size)}</span>}</Placeholder>;
+  if (failed) return <Placeholder icon={<ImageBroken size={18} />} title={t("workspace.imageFailed")}>{size !== undefined && <span>{formatBytes(size)}</span>}</Placeholder>;
   return (
     <div className={ui.panelBody} data-el="image-view">
       <div className={ui.viewerMeta}>
@@ -219,6 +228,7 @@ export function PdfView({ src, name }: { src: string; name: string }) {
 }
 
 export function Placeholder({ icon, title, children, download }: { icon: ReactNode; title: string; children?: ReactNode; download?: string }) {
+  const { t } = useI18n();
   return (
     <div className={ui.empty}>
       <div className={ui.emptyInner}>
@@ -227,7 +237,7 @@ export function Placeholder({ icon, title, children, download }: { icon: ReactNo
         {children}
         {download && (
           <a className={`${ui.btn} ${ui.btnSm}`} href={download} download>
-            <DownloadSimple size={13} /> Download
+            <DownloadSimple size={13} /> {t("workspace.download")}
           </a>
         )}
       </div>

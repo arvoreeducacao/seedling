@@ -6,6 +6,7 @@ import { domainAllowed, listedAdmin } from "@/lib/admins";
 import { signupDecision, signupMethod } from "@/lib/signup";
 import { INVITE_HEADER, consumeInvite, hasUsers } from "@/lib/admin-invites";
 import { mailConfigured, sendVerification } from "@/lib/mail";
+import { pickLocale } from "@/lib/i18n";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env";
 
@@ -29,8 +30,8 @@ export const auth = betterAuth({
         sendOnSignUp: true,
         sendOnSignIn: true,
         autoSignInAfterVerification: true,
-        sendVerificationEmail: async ({ user, url }) => {
-          await sendVerification({ to: user.email, url });
+        sendVerificationEmail: async ({ user, url }, request) => {
+          await sendVerification({ to: user.email, url, locale: pickLocale(request?.headers.get("accept-language")) });
         },
       }
     : undefined,

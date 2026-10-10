@@ -57,6 +57,13 @@
       "when": 1791610000000,
       "tag": "0007_prep_steps",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791594671733,
+      "tag": "0008_cold_nighthawk",
+      "breakpoints": true
     }
   ]
 }
