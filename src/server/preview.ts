@@ -11,6 +11,7 @@ import { BRIDGE_PATH, bridgeScript, injectBridge } from "@/lib/preview/bridge";
 import { mimeOf } from "@/lib/preview/mime";
 import { OutsideError, readInside, statInside } from "@/lib/safe-path";
 import { forwardedCookie, rewriteLocation, rewriteSetCookie, safePath, withoutFrameAncestors } from "@/lib/preview/headers";
+import { i18nFor, pickLocale, type T } from "@/lib/i18n";
 
 const previewHost = env.previewOrigin ? new URL(env.previewOrigin).host : "";
 const secure = env.previewOrigin.startsWith("https://");
@@ -40,6 +41,10 @@ function baseHeaders(): Record<string, string> {
 
 function escapeHtml(text: string) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function voiceOf(req: http.IncomingMessage): T {
+  return i18nFor(pickLocale(req.headers["accept-language"])).t;
 }
 
 function notice(res: http.ServerResponse, status: number, title: string, detail: string) {
@@ -117,6 +122,7 @@ function responseHeaders(up: http.IncomingMessage, port: number) {
 }
 
 function relay(req: http.IncomingMessage, res: http.ServerResponse, containerId: string, port: number) {
+  const t = voiceOf(req);
   const upstream = http.request({ agent: agentFor(containerId, port), host: "localhost", port, method: req.method, path: req.url, headers: upstreamHeaders(req, port) }, (up) => {
     const headers = responseHeaders(up, port);
     const html = /text\/html/i.test(String(up.headers["content-type"] ?? "")) && !up.headers["content-encoding"] && req.method === "GET";
@@ -138,10 +144,10 @@ function relay(req: http.IncomingMessage, res: http.ServerResponse, containerId:
       res.writeHead(up.statusCode ?? 200, headers);
       res.end(body);
     });
-    up.on("error", () => notice(res, 502, "The page stopped responding", "The app closed the connection."));
+    up.on("error", () => notice(res, 502, t("server.previewStoppedTitle"), t("server.previewStoppedDetail")));
   });
   upstream.setTimeout(60_000, () => upstream.destroy(new Error("timeout")));
-  upstream.on("error", () => notice(res, 502, `Nothing is answering on port ${port}`, "Start the dev server in the terminal, then reload."));
+  upstream.on("error", () => notice(res, 502, t("server.previewNoAnswerTitle", { port }), t("server.previewNoAnswerDetail")));
   req.pipe(upstream);
 }
 
@@ -154,8 +160,9 @@ function decoded(pathname: string) {
 }
 
 async function serveFile(req: http.IncomingMessage, res: http.ServerResponse, session: Session) {
+  const t = voiceOf(req);
   if (req.method !== "GET" && req.method !== "HEAD") {
-    notice(res, 405, "Read only", "Workspace files open as static pages.");
+    notice(res, 405, t("server.previewReadOnlyTitle"), t("server.previewReadOnlyDetail"));
     return;
   }
   const root = path.resolve(workspaceDir(session.id, session.currentIndex));
@@ -163,17 +170,17 @@ async function serveFile(req: http.IncomingMessage, res: http.ServerResponse, se
   let relative = decoded(pathname).replace(/^\/+/, "");
   const entry = await statInside(root, relative).catch((error: unknown) => (error instanceof OutsideError ? "outside" : null));
   if (entry === "outside") {
-    notice(res, 404, "Not found", pathname);
+    notice(res, 404, t("server.previewNotFound"), pathname);
     return;
   }
   if (entry?.stat.isDirectory()) relative = path.join(relative, "index.html");
   const file = await readInside(root, relative, MAX_FILE).catch(() => null);
   if (!file) {
-    notice(res, 404, "File not found", relative || "/");
+    notice(res, 404, t("server.previewFileNotFound"), relative || "/");
     return;
   }
   if (!file.buffer) {
-    notice(res, 413, "File too large", "Open it from the Files panel instead.");
+    notice(res, 413, t("server.previewTooLargeTitle"), t("server.previewTooLargeDetail"));
     return;
   }
   const target = file.target;
@@ -185,20 +192,21 @@ async function serveFile(req: http.IncomingMessage, res: http.ServerResponse, se
 }
 
 async function enter(req: http.IncomingMessage, res: http.ServerResponse) {
+  const t = voiceOf(req);
   const url = new URL(req.url ?? "/", "http://preview");
   const ticket = signer().verify(url.searchParams.get("ticket"), "ticket");
   if (!ticket) {
-    notice(res, 401, "This preview link expired", "Open the page again from the workspace.");
+    notice(res, 401, t("server.previewExpiredTitle"), t("server.previewExpiredDetail"));
     return;
   }
   const port = Number(url.searchParams.get("port") ?? 0);
   if (!previewPortAllowed(port)) {
-    notice(res, 400, "Invalid port", String(url.searchParams.get("port")));
+    notice(res, 400, t("server.previewInvalidPort"), String(url.searchParams.get("port")));
     return;
   }
   const found = await resolveSession(ticket.session);
   if (!found) {
-    notice(res, 404, "The session is not running", "Pages open only while the session is live.");
+    notice(res, 404, t("server.previewSessionOverTitle"), t("server.previewSessionOverDetail"));
     return;
   }
   const lifetime = passLifetime(remainingMs(found.session));
@@ -209,6 +217,7 @@ async function enter(req: http.IncomingMessage, res: http.ServerResponse) {
 }
 
 export async function handlePreview(req: http.IncomingMessage, res: http.ServerResponse) {
+  const t = voiceOf(req);
   try {
     const pathname = (req.url ?? "/").split("?")[0];
     if (pathname === ENTER_PATH) return await enter(req, res);
@@ -218,16 +227,16 @@ export async function handlePreview(req: http.IncomingMessage, res: http.ServerR
       return;
     }
     const pass = signer().verify(cookieOf(req, PREVIEW_COOKIE), "pass");
-    if (!pass) return notice(res, 401, "Open this page from the workspace", "Preview links are tied to a live session and expire on their own.");
+    if (!pass) return notice(res, 401, t("server.previewNoPassTitle"), t("server.previewNoPassDetail"));
     const found = await resolveSession(pass.session);
-    if (!found) return notice(res, 404, "The session is not running", "Pages open only while the session is live.");
+    if (!found) return notice(res, 404, t("server.previewSessionOverTitle"), t("server.previewSessionOverDetail"));
     if (pass.port === 0) return await serveFile(req, res, found.session);
-    if (!previewPortAllowed(pass.port)) return notice(res, 403, "This port is not available", String(pass.port));
-    if (!found.containerId) return notice(res, 502, "The sandbox is starting", "Try again in a few seconds.");
+    if (!previewPortAllowed(pass.port)) return notice(res, 403, t("server.previewPortClosed"), String(pass.port));
+    if (!found.containerId) return notice(res, 502, t("server.previewStartingTitle"), t("server.previewStartingDetail"));
     relay(req, res, found.containerId, pass.port);
   } catch (error) {
     console.error("[seedling] preview", error);
-    notice(res, 502, "Preview unavailable", "Something went wrong opening this page.");
+    notice(res, 502, t("server.previewFailedTitle"), t("server.previewFailedDetail"));
   }
 }
 

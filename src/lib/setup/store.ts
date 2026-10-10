@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, ready, schema } from "@/lib/db";
 import type { SetupInstall, SetupMcpServer, SetupSkill } from "@/lib/db/schema";
+import type { Key } from "@/lib/i18n";
 import { setupPolicy, type SetupPolicy } from "./policy";
 import { SETUP_LIMITS, SetupError, checkTotals, maskUrl, setupTotals } from "./validate";
 
@@ -34,11 +35,10 @@ async function save(sessionId: string, next: Omit<CandidateSetup, "lastInstall">
     .onConflictDoUpdate({ target: schema.candidateSetups.sessionId, set: values });
 }
 
+const offKeys: Record<keyof SetupPolicy, Key> = { skills: "setup.off.skills", claudeMd: "setup.off.claudeMd", mcpServers: "setup.off.mcpServers" };
+
 function assertAllowed(policy: SetupPolicy, key: keyof SetupPolicy) {
-  if (!policy[key]) {
-    const label = key === "skills" ? "Skills" : key === "claudeMd" ? "CLAUDE.md" : "MCP servers";
-    throw new SetupError(`${label} are turned off for this interview.`);
-  }
+  if (!policy[key]) throw new SetupError(offKeys[key]);
 }
 
 export async function addSkills(sessionId: string, skills: SetupSkill[]) {

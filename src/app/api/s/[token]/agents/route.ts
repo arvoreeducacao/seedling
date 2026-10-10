@@ -1,7 +1,8 @@
-import { candidateSession, unauthorized } from "@/lib/candidate";
+import { candidateSession, errorText, unauthorized } from "@/lib/candidate";
 import { createAgent, listAgents } from "@/lib/agents";
 import { env } from "@/lib/env";
 import { withStatus } from "@/lib/agent-status";
+import { i18nFromRequest } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   try {
     return Response.json({ agent: await createAgent(session, body.name) });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "could not open a new agent" }, { status: 400 });
+    return Response.json({ error: errorText(error, i18nFromRequest(req).t, "server.agentOpenFailed") }, { status: 400 });
   }
 }

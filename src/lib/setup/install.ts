@@ -109,9 +109,9 @@ export async function installSetup(sessionId: string, containerId: string, owner
       await writeReadable(path.join(dir, "claude.json"), JSON.stringify(merged));
     }
     const result = await sandbox().exec(containerId, INSTALL_SCRIPT, 60_000);
-    if (result.exitCode !== 0) record.error = "Copying the setup into the sandbox failed.";
+    if (result.exitCode !== 0) record.error = "setup.install.copyFailed";
   } catch {
-    record.error = "Preparing the setup failed.";
+    record.error = "setup.install.stageFailed";
   } finally {
     await clearStage(sessionId).catch(() => {});
   }

@@ -1,9 +1,11 @@
+import type { Key } from "@/lib/i18n";
+
 export const criteria = [
-  { key: "dado", label: "Read the data" },
-  { key: "ia", label: "Checked the AI" },
-  { key: "codigo", label: "Code clarity" },
-  { key: "defesa", label: "Defended the choice" },
-] as const;
+  { key: "dado", labelKey: "report.criterion.dado" },
+  { key: "ia", labelKey: "report.criterion.ia" },
+  { key: "codigo", labelKey: "report.criterion.codigo" },
+  { key: "defesa", labelKey: "report.criterion.defesa" },
+] as const satisfies readonly { key: string; labelKey: Key }[];
 
 export function average(scores: Record<string, number>) {
   const values = Object.values(scores).filter((v) => v > 0);
@@ -14,7 +16,7 @@ export function divergence(evaluations: { evaluator: string; scores: Record<stri
   if (evaluations.length < 2) return null;
   for (const c of criteria) {
     const values = evaluations.map((e) => e.scores[c.key] ?? 0).filter(Boolean);
-    if (values.length >= 2 && Math.max(...values) - Math.min(...values) >= 2) return { criterion: c.label, values: evaluations.map((e) => ({ evaluator: e.evaluator, value: e.scores[c.key] ?? 0 })) };
+    if (values.length >= 2 && Math.max(...values) - Math.min(...values) >= 2) return { criterion: c.key, values: evaluations.map((e) => ({ evaluator: e.evaluator, value: e.scores[c.key] ?? 0 })) };
   }
   return null;
 }

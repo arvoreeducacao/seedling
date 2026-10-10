@@ -5,10 +5,11 @@ import { env } from "@/lib/env";
 import { costOf, priceOf, type Usage } from "@/lib/pricing";
 import { Ledger, MIN_OUTPUT_TOKENS, clampBody, estimateInputTokens, billedUsage, filterBetas, outputAllowance, reservation, type MessagesBody } from "@/lib/budget";
 import { AGENT_HEADER, MAIN_AGENT, validAgentKey } from "@/lib/agent-keys";
+import { defaultLocale, i18nFor, type Key, type Locale, type Params, type T } from "@/lib/i18n";
 
 export type PassCheck =
   | { ok: true; pass: typeof schema.passes.$inferSelect; session: typeof schema.sessions.$inferSelect }
-  | { ok: false; status: number; reason: string };
+  | { ok: false; status: number; reason: Key; params?: Params; locale?: Locale };
 
 export async function issuePass(sessionId: string, expiresAt: Date, budgetUsd: number) {
   const token = newToken("sdl");
@@ -16,7 +17,7 @@ export async function issuePass(sessionId: string, expiresAt: Date, budgetUsd: n
   return token;
 }
 
-export async function revokePasses(sessionId: string, reason: string) {
+export async function revokePasses(sessionId: string, reason: Key) {
   await db
     .update(schema.passes)
     .set({ revokedAt: new Date(), revokedReason: reason })
@@ -46,15 +47,16 @@ export const ledger = (globalForLedger.seedlingLedger ??= new Ledger());
 
 export async function checkPass(token: string | null): Promise<PassCheck> {
   await ready();
-  if (!token) return { ok: false, status: 401, reason: "missing pass" };
+  if (!token) return { ok: false, status: 401, reason: "pass.missing" };
   const pass = await db.query.passes.findFirst({ where: eq(schema.passes.tokenHash, hashToken(token)) });
-  if (!pass) return { ok: false, status: 401, reason: "unknown pass" };
-  if (pass.revokedAt) return { ok: false, status: 403, reason: "Claude access for this session was turned off" };
-  if (pass.expiresAt.getTime() <= Date.now()) return { ok: false, status: 403, reason: "the session time is over" };
-  if (pass.spentUsd >= pass.budgetUsd) return { ok: false, status: 429, reason: "the session spending cap was reached" };
+  if (!pass) return { ok: false, status: 401, reason: "pass.unknown" };
   const session = await db.query.sessions.findFirst({ where: eq(schema.sessions.id, pass.sessionId) });
-  if (!session || session.status !== "running") return { ok: false, status: 403, reason: "the session is not in progress" };
-  if ((await monthSpend()) + ledger.reserved() >= env.monthlyBudgetUsd) return { ok: false, status: 429, reason: "the organization monthly cap was reached" };
+  const locale = session?.locale;
+  if (pass.revokedAt) return { ok: false, status: 403, reason: "pass.turnedOff", locale };
+  if (pass.expiresAt.getTime() <= Date.now()) return { ok: false, status: 403, reason: "pass.timeOver", locale };
+  if (pass.spentUsd >= pass.budgetUsd) return { ok: false, status: 429, reason: "pass.capReached", locale };
+  if (!session || session.status !== "running") return { ok: false, status: 403, reason: "server.sessionNotInProgress", locale };
+  if ((await monthSpend()) + ledger.reserved() >= env.monthlyBudgetUsd) return { ok: false, status: 429, reason: "pass.monthlyCap", locale };
   return { ok: true, pass, session };
 }
 
@@ -195,29 +197,30 @@ function upstreamModel(model: string) {
   return `${env.anthropicModelPrefix}${model.replace(/-(\d+)-(\d+)$/, "-$1.$2")}`;
 }
 
-export async function forwardMessages(req: Request, source: "panel" | "terminal") {
+export async function forwardMessages(req: Request, source: "panel" | "terminal", readerLocale?: Locale) {
   const check = await checkPass(tokenFromHeaders(req.headers));
-  if (!check.ok) return errorResponse(check.status, check.reason);
-  if (!env.anthropicKey) return errorResponse(503, "the server has no ANTHROPIC_API_KEY");
+  if (!check.ok) return errorResponse(check.status, localeOf(readerLocale, check.locale), check.reason, check.params);
+  const { t } = i18nFor(localeOf(readerLocale, check.session.locale));
+  if (!env.anthropicKey) return errorResponse(503, t, "pass.noServerKey");
   const raw = await req.text();
   let parsed: Body;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return errorResponse(400, "invalid body");
+    return errorResponse(400, t, "error.badBody");
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return errorResponse(400, "invalid body");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return errorResponse(400, t, "error.badBody");
   const model = upstreamModel(check.session.model);
   const price = priceOf(model);
   const inputTokens = estimateInputTokens(raw);
   const limits = env.ai;
   const admitted = await ledger.lock(check.pass.id, async () => {
     const pass = await db.query.passes.findFirst({ where: eq(schema.passes.id, check.pass.id) });
-    if (!pass || pass.revokedAt) return { ok: false as const, error: errorResponse(403, "Claude access for this session was turned off") };
-    if (ledger.inflight(pass.id) >= limits.maxInflight) return { ok: false as const, error: errorResponse(429, `too many parallel requests for this session (limit ${limits.maxInflight})`) };
+    if (!pass || pass.revokedAt) return { ok: false as const, error: errorResponse(403, t, "pass.turnedOff") };
+    if (ledger.inflight(pass.id) >= limits.maxInflight) return { ok: false as const, error: errorResponse(429, t, "pass.tooManyParallel", { max: limits.maxInflight }) };
     const allowance = outputAllowance({ budgetUsd: pass.budgetUsd, spentUsd: pass.spentUsd, reservedUsd: ledger.reserved(pass.id), inputTokens, price });
     const requested = Number.isFinite(parsed.max_tokens) && (parsed.max_tokens as number) > 0 ? (parsed.max_tokens as number) : limits.maxOutputTokens;
-    if (allowance < Math.min(requested, MIN_OUTPUT_TOKENS)) return { ok: false as const, error: errorResponse(429, "the session spending cap was reached") };
+    if (allowance < Math.min(requested, MIN_OUTPUT_TOKENS)) return { ok: false as const, error: errorResponse(429, t, "pass.capReached") };
     const body = { ...clampBody(parsed, limits, allowance), model };
     const hold = ledger.hold(pass.id, reservation(price, inputTokens, body.max_tokens ?? 0));
     return { ok: true as const, body, hold };
@@ -244,7 +247,7 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
     upstream = await fetch(`${env.anthropicUpstream}/v1/messages`, { method: "POST", headers, body: JSON.stringify(body), signal: abort.signal });
   } catch {
     ledger.release(hold);
-    return errorResponse(502, "could not reach the AI provider");
+    return errorResponse(502, t, "pass.upstreamDown");
   }
   const outHeaders = new Headers({ "content-type": upstream.headers.get("content-type") ?? "application/json" });
   if (body.stream && upstream.ok && upstream.body) {
@@ -260,9 +263,9 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
   return new Response(text, { status: upstream.status, headers: outHeaders });
 }
 
-export async function countTokens(req: Request) {
+export async function countTokens(req: Request, readerLocale?: Locale) {
   const check = await checkPass(tokenFromHeaders(req.headers));
-  if (!check.ok) return errorResponse(check.status, check.reason);
+  if (!check.ok) return errorResponse(check.status, localeOf(readerLocale, check.locale), check.reason, check.params);
   const body = await req.json().catch(() => ({}));
   body.model = upstreamModel(check.session.model);
   const upstream = await fetch(`${env.anthropicUpstream}/v1/messages/count_tokens`, {
@@ -278,9 +281,14 @@ export async function countTokens(req: Request) {
   return new Response(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
 }
 
-export function errorResponse(status: number, message: string) {
+function localeOf(...candidates: (Locale | undefined)[]): Locale {
+  return candidates.find(Boolean) ?? defaultLocale;
+}
+
+export function errorResponse(status: number, voice: T | Locale, key: Key, params?: Params) {
+  const t = typeof voice === "function" ? voice : i18nFor(voice).t;
   return Response.json(
-    { type: "error", error: { type: status === 429 ? "rate_limit_error" : status === 401 ? "authentication_error" : "permission_error", message } },
+    { type: "error", error: { type: status === 429 ? "rate_limit_error" : status === 401 ? "authentication_error" : "permission_error", message: t(key, params) } },
     { status },
   );
 }

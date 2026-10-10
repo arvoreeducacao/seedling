@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { animate, motion, MotionConfig, useInView, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
+import { useI18n } from "@/components/i18n";
+import { money, number } from "@/lib/format";
 
 export const spring = { type: "spring", stiffness: 520, damping: 38, mass: 0.7 } as const;
 
@@ -19,10 +21,11 @@ export function PageEnter({ children }: { children: React.ReactNode }) {
 }
 
 export function Ticker({ value, format = "int", duration = 0.9 }: { value: number; format?: "int" | "money"; duration?: number }) {
+  const i18n = useI18n();
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
   const reduce = useReducedMotion();
-  const render = (n: number) => (format === "money" ? `$${n.toFixed(2)}` : String(Math.round(n)));
+  const render = (n: number) => (format === "money" ? money(i18n, n) : number(i18n, Math.round(n)));
   const [text, setText] = useState(render(reduce ? value : 0));
   useEffect(() => {
     if (!inView) return;

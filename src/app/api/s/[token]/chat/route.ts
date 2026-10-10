@@ -2,6 +2,7 @@ import { MAX_TEXT_FILE, candidateSession, listTree, readWorkspaceFile, workspace
 import { activeChallenge } from "@/lib/active-challenge";
 import { forwardMessages } from "@/lib/gateway";
 import { passStore } from "@/lib/sessions";
+import { i18nFromRequest } from "@/lib/i18n/server";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -11,11 +12,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
   const session = await candidateSession(token);
   if (!session || session.status !== "running") return unauthorized();
+  const i18n = i18nFromRequest(req);
+  const { t } = i18n;
   const body = (await req.json().catch(() => null)) as { messages?: Msg[]; openFile?: string } | null;
   const history = (body?.messages ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-30);
-  if (!history.length || history[history.length - 1].role !== "user") return Response.json({ error: "empty message" }, { status: 400 });
+  if (!history.length || history[history.length - 1].role !== "user") return Response.json({ error: t("server.emptyMessage") }, { status: 400 });
   const pass = await passStore.get(session.id);
-  if (!pass) return Response.json({ error: "AI access for this session is off" }, { status: 403 });
+  if (!pass) return Response.json({ error: t("server.aiOff") }, { status: 403 });
   const challenge = await activeChallenge(session);
   const root = workspaceRoot(session);
   const tree = (await listTree(root, 300)).filter((f) => !f.dir).map((f) => f.path);
@@ -40,5 +43,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     headers: { authorization: `Bearer ${pass}`, "content-type": "application/json", "anthropic-version": "2023-06-01" },
     body: JSON.stringify({ model: session.model, max_tokens: 8000, system, messages: history, stream: true }),
   });
-  return forwardMessages(upstream, "panel");
+  return forwardMessages(upstream, "panel", i18n.locale);
 }

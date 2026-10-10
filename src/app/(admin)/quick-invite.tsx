@@ -5,11 +5,13 @@ import { useActionState, useState } from "react";
 import { Select } from "@/components/select";
 import { Segmented } from "@/components/segmented";
 import { IconArrow, IconCheck, IconCopy } from "@/components/icons";
+import { useI18n } from "@/components/i18n";
 import { inviteMany, type InviteResult } from "./sessions/actions";
 
 export type QuickSetup = { id: string; from: string; name: string; detail: string; challengeIds: string[]; minutes: number; budgetUsd: number; model: string };
 
 export function QuickInvite({ setups }: { setups: QuickSetup[] }) {
+  const { t } = useI18n();
   const [state, action, pending] = useActionState<InviteResult | null, FormData>(inviteMany, null);
   const [mode, setMode] = useState<"live" | "async">("live");
   const [setupId, setSetupId] = useState(setups[0]?.id ?? "");
@@ -19,8 +21,8 @@ export function QuickInvite({ setups }: { setups: QuickSetup[] }) {
     <section data-el="quick-invite" className="queue">
       {!setup ? (
         <div style={{ padding: 20 }}>
-          <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>Once you&apos;ve sent a first invite, you can reuse its setup here in one click.</p>
-          <Link href="/sessions/new" className="btn" style={{ marginTop: 12 }}>Invite a candidate</Link>
+          <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>{t("quick.emptyText")}</p>
+          <Link href="/sessions/new" className="btn" style={{ marginTop: 12 }}>{t("overview.inviteCandidate")}</Link>
         </div>
       ) : (
         <form action={action} style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -30,10 +32,10 @@ export function QuickInvite({ setups }: { setups: QuickSetup[] }) {
           <input type="hidden" name="budget" value={setup.budgetUsd} />
           <input type="hidden" name="model" value={setup.model} />
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) auto auto", gap: 10, alignItems: "center" }}>
-            <input className="input" name="emails" type="email" required placeholder="candidate@example.com" aria-label="Candidate email" />
-            <Select ariaLabel="Setup" value={setup.id} onChange={setSetupId} options={setups.map((s) => ({ value: s.id, label: s.name, text: s.name, hint: s.detail }))} />
-            <div data-el="invite-mode"><Segmented ariaLabel="Format" value={mode} onChange={setMode} options={[{ value: "live", label: "Live" }, { value: "async", label: "Take-home" }]} /></div>
-            <button data-el="quick-send" className="btn btn-white" disabled={pending}>{pending ? "Sending…" : "Send invite"}</button>
+            <input className="input" name="emails" type="email" required placeholder={t("quick.emailPlaceholder")} aria-label={t("quick.emailLabel")} />
+            <Select ariaLabel={t("quick.setupLabel")} value={setup.id} onChange={setSetupId} options={setups.map((s) => ({ value: s.id, label: s.name, text: s.name, hint: s.detail }))} />
+            <div data-el="invite-mode"><Segmented ariaLabel={t("quick.formatLabel")} value={mode} onChange={setMode} options={[{ value: "live", label: t("quick.formatLive") }, { value: "async", label: t("quick.formatAsync") }]} /></div>
+            <button data-el="quick-send" className="btn btn-white" disabled={pending}>{pending ? t("quick.sending") : t("quick.send")}</button>
           </div>
           <div className="faint" style={{ fontSize: 12.5 }}>{setup.detail}</div>
           {state && !state.ok && <div className="notice notice-err" role="alert">{state.error}</div>}
@@ -42,10 +44,10 @@ export function QuickInvite({ setups }: { setups: QuickSetup[] }) {
               {state.links.map((l) => (
                 <div key={l.url} className="notice notice-accent" style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: "var(--text)", fontWeight: 600 }}>{l.mailed ? `Invite emailed to ${l.email}` : `Invite for ${l.email} created. Email isn't configured, so send this link yourself; it is shown only once.`}</div>
+                    <div style={{ color: "var(--text)", fontWeight: 600 }}>{t(l.mailed ? "quick.emailed" : "quick.notEmailed", { email: l.email })}</div>
                     <div className="mono truncate" style={{ fontSize: 12, marginTop: 4 }} data-testid="invite-link">{l.url}</div>
                   </div>
-                  <button type="button" className="btn btn-sm" onClick={() => { void navigator.clipboard.writeText(l.url); setCopied(l.url); }}>{copied === l.url ? <IconCheck size={12} /> : <IconCopy size={12} />}{copied === l.url ? "Copied" : "Copy link"}</button>
+                  <button type="button" className="btn btn-sm" onClick={() => { void navigator.clipboard.writeText(l.url); setCopied(l.url); }}>{copied === l.url ? <IconCheck size={12} /> : <IconCopy size={12} />}{copied === l.url ? t("common.copied") : t("quick.copyLink")}</button>
                 </div>
               ))}
             </div>
@@ -53,7 +55,7 @@ export function QuickInvite({ setups }: { setups: QuickSetup[] }) {
         </form>
       )}
       <div className="card-foot">
-        <Link data-el="more-options" href={setup ? `/sessions/new?from=${setup.from}` : "/sessions/new"} className="faint hover:!text-[var(--text-2)]" style={{ fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6 }}>Pick challenges, time and AI budget<IconArrow size={13} /></Link>
+        <Link data-el="more-options" href={setup ? `/sessions/new?from=${setup.from}` : "/sessions/new"} className="faint hover:!text-[var(--text-2)]" style={{ fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 6 }}>{t("quick.moreOptions")}<IconArrow size={13} /></Link>
       </div>
     </section>
   );

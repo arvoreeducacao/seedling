@@ -7,6 +7,7 @@ import { newId } from "@/lib/crypto";
 import { dataPath } from "@/lib/env";
 import { sandbox } from "@/lib/sandbox";
 import { copyTreeNoLinks, makeTreeWritable } from "@/lib/safe-path";
+import { AppError, type Key } from "@/lib/i18n";
 import type { ChallengeCheck } from "@/lib/db/schema";
 import {
   classify,
@@ -20,6 +21,7 @@ import {
   stripCommonRoot,
   trapsFrom,
   type FileRole,
+  type SecretKind,
 } from "./classify";
 
 type Manifest = {
@@ -37,6 +39,16 @@ type Manifest = {
 
 const MAX_FILES = 5000;
 const MAX_BYTES = 50 * 1024 * 1024;
+
+const secretKeys: Record<SecretKind, Key> = {
+  env: "challenges.secret.env",
+  anthropic: "challenges.secret.anthropic",
+  openai: "challenges.secret.openai",
+  aws: "challenges.secret.aws",
+  github: "challenges.secret.github",
+  privateKey: "challenges.secret.privateKey",
+  slack: "challenges.secret.slack",
+};
 
 export function challengeDir(id: string) {
   return dataPath("challenges", id, "files");
@@ -83,10 +95,10 @@ export async function importZip(buffer: Buffer, createdBy: string) {
   await ready();
   const zip = new AdmZip(buffer);
   const entries = zip.getEntries().filter((e) => !e.isDirectory && !isIgnored(e.entryName));
-  if (!entries.length) throw new Error("the .zip is empty");
-  if (entries.length > MAX_FILES) throw new Error(`the .zip has more than ${MAX_FILES} files`);
+  if (!entries.length) throw new AppError("challenges.zipEmpty");
+  if (entries.length > MAX_FILES) throw new AppError("challenges.zipTooManyFiles", { max: MAX_FILES });
   const total = entries.reduce((sum, e) => sum + e.header.size, 0);
-  if (total > MAX_BYTES) throw new Error("the .zip is over 50 MB uncompressed");
+  if (total > MAX_BYTES) throw new AppError("challenges.zipTooBig");
 
   const renamed = stripCommonRoot(entries.map((e) => e.entryName));
   const files = entries.map((entry, i) => ({ path: renamed[i].to, data: entry.getData() }));
@@ -105,7 +117,7 @@ export async function importZip(buffer: Buffer, createdBy: string) {
   const hiddenDir = hiddenDirOf(paths);
   const pkg = JSON.parse(read("package.json") ?? "null");
   const commands = inferCommands(runtime, hiddenDir, pkg, manifest);
-  const title = manifest.title ?? statement.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "Untitled challenge";
+  const title = manifest.title ?? statement.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
   const roles = files.map((f) => ({ ...f, role: classify(f.path, statementPath) as FileRole }));
   const counts = {
     visible: roles.filter((r) => r.role === "visible" || r.role === "visible-test" || r.role === "statement").length,
@@ -214,18 +226,32 @@ async function staticChecksFor(challengeId: string, statement: string): Promise<
     files.filter((f) => f.role === "visible" || f.role === "visible-test" || f.role === "statement").map((f) => f.path),
   );
   return [
-    {
-      key: "no-secrets",
-      ok: secrets.length === 0,
-      title: secrets.length ? "Found something that looks like a secret" : "No secrets in the files",
-      detail: secrets.length ? secrets.slice(0, 5).join(", ") : "keys, tokens or .env files",
-    },
-    {
-      key: "statement-leak",
-      ok: leaks.length === 0,
-      title: leaks.length ? "The statement mentions a file the candidate can't see" : "The statement mentions no hidden file",
-      detail: leaks.length ? leaks.slice(0, 3).join(", ") : "nothing that is team-only shows up in the text",
-    },
+    secrets.length
+      ? {
+          key: "no-secrets",
+          ok: false,
+          titleMessage: { key: "challenges.check.noSecretsFail" },
+          detailFindings: secrets.slice(0, 5).map((secret) => ({ key: secretKeys[secret.kind], params: { path: secret.path } })),
+        }
+      : {
+          key: "no-secrets",
+          ok: true,
+          titleMessage: { key: "challenges.check.noSecretsOk" },
+          detailMessage: { key: "challenges.check.noSecretsOkDetail" },
+        },
+    leaks.length
+      ? {
+          key: "statement-leak",
+          ok: false,
+          titleMessage: { key: "challenges.check.leakFail" },
+          detailFindings: leaks.slice(0, 3).map((leak) => ({ key: "challenges.leak", params: { line: leak.line, path: leak.path } })),
+        }
+      : {
+          key: "statement-leak",
+          ok: true,
+          titleMessage: { key: "challenges.check.leakOk" },
+          detailMessage: { key: "challenges.check.leakOkDetail" },
+        },
   ];
 }
 
@@ -237,7 +263,12 @@ export async function runChecks(challengeId: string) {
   const dynamic: ChallengeCheck[] = [];
   try {
     if (!challenge.hiddenTestCommand) {
-      dynamic.push({ key: "reference-passes", ok: false, title: "No hidden tests", detail: "add a hidden-tests/ folder or set the command in seedling.json" });
+      dynamic.push({
+        key: "reference-passes",
+        ok: false,
+        titleMessage: { key: "challenges.noHiddenTests" },
+        detailMessage: { key: "challenges.check.noHiddenTestsDetail" },
+      });
     } else {
       await sandbox().ensureImage();
       const starter = await scratch("starter");
@@ -255,22 +286,37 @@ export async function runChecks(challengeId: string) {
         dynamic.push({
           key: "reference-passes",
           ok: allPass,
-          title: allPass ? "The reference solution passes everything" : "The reference solution fails hidden tests",
-          detail: refResult ? `${refResult.passed} of ${refResult.total} hidden tests` : "did not run",
+          titleMessage: { key: allPass ? "challenges.check.referenceOk" : "challenges.check.referenceFail" },
+          detailMessage: refResult
+            ? { key: "challenges.check.hiddenRatio", params: { passed: refResult.passed, n: refResult.total } }
+            : { key: "challenges.check.didNotRun" },
         });
       } else {
-        dynamic.push({ key: "reference-passes", ok: true, title: "No reference solution", detail: "recommended: a solution/ folder proves the hidden tests can be solved" });
+        dynamic.push({
+          key: "reference-passes",
+          ok: true,
+          titleMessage: { key: "challenges.check.noReference" },
+          detailMessage: { key: "challenges.check.noReferenceDetail" },
+        });
       }
       const starterSolved = Boolean(starterResult && starterResult.exitCode === 0 && starterResult.passed === starterResult.total);
       dynamic.push({
         key: "starter-fails",
         ok: !starterSolved,
-        title: starterSolved ? "The starter code already passes the hidden tests" : "The starter code is not already solved",
-        detail: starterResult ? `${starterResult.passed} of ${starterResult.total} hidden tests pass` : "did not run",
+        titleMessage: { key: starterSolved ? "challenges.check.starterSolved" : "challenges.check.starterFails" },
+        detailMessage: starterResult
+          ? { key: "challenges.check.hiddenRatioPass", params: { passed: starterResult.passed, n: starterResult.total } }
+          : { key: "challenges.check.didNotRun" },
       });
     }
   } catch (error) {
-    dynamic.push({ key: "reference-passes", ok: false, title: "Could not run the tests", detail: error instanceof Error ? error.message : "error" });
+    dynamic.push({
+      key: "reference-passes",
+      ok: false,
+      titleMessage: { key: "challenges.check.runFailed" },
+      detail: error instanceof Error ? error.message : undefined,
+      detailMessage: error instanceof Error ? undefined : { key: "challenges.check.unknownError" },
+    });
   }
   const checks = [...dynamic, ...staticChecks];
   const blocking = checks.some((c) => !c.ok && c.key !== "statement-leak");

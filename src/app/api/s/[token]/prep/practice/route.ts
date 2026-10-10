@@ -6,6 +6,8 @@ import { CANDIDATE_COOKIE, practiceSession, remainingMs, startPractice } from "@
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { env } from "@/lib/env";
+import { i18nFromRequest } from "@/lib/i18n/server";
+import { messageOf } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   });
 }
 
-export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const session = await prepSession(token);
   if (!session) return denied();
@@ -46,6 +48,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     }
     return Response.json({ url: `/s/${practiceToken}/w` });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Couldn't start the practice run." }, { status: 409 });
+    return Response.json({ error: messageOf(error, i18nFromRequest(req).t, "server.practiceStartFailed") }, { status: 409 });
   }
 }

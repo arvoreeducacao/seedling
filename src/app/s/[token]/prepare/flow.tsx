@@ -7,13 +7,15 @@ import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpenText, Check, Flask, HandWa
 import ui from "@/components/workspace/ui.module.css";
 import { CodeCrystal, Sprout } from "@/components/brand";
 import { BringYourSetup } from "@/components/setup/bring-your-setup";
+import { useI18n } from "@/components/i18n";
+import type { T } from "@/lib/i18n";
 import { buildSteps, completion, firstOpenStep, nextSection, parseStep, settled, stepAfter, stepBefore, type StepId, type StepMark } from "@/lib/prep/steps";
 import css from "../landing.module.css";
 import prep from "../prep.module.css";
-import { prepFetch } from "./client";
+import { prepError, prepFetch } from "./client";
 import { Countdown, LocalDate } from "./countdown";
 import { Practice, practiceUsed, usePracticeStatus, type PracticeOffer } from "./practice";
-import { StepperBar, StepperRail, stepTitles } from "./stepper";
+import { StepperBar, StepperRail, stepTitleKeys } from "./stepper";
 
 export type FlowSection = { id: string; title: string; html: string; links: { title: string; url: string; why: string; host: string }[] };
 
@@ -32,9 +34,8 @@ type Props = {
   requested: { step: string | null; section: string | null };
 };
 
-const dateFormat: Intl.DateTimeFormatOptions = { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" };
-
 export function PrepFlow(props: Props) {
+  const { t } = useI18n();
   const { token, first, sections, bring, practice, target, expiresAt } = props;
   const [sectionsDone, setSectionsDone] = useState(props.initial.sectionsDone);
   const [stepsDone, setStepsDone] = useState(props.initial.stepsDone);
@@ -96,7 +97,7 @@ export function PrepFlow(props: Props) {
       setStepsDone(result.stepsDone);
     } catch (e) {
       setStepsDone(before);
-      setError(e instanceof Error ? e.message : "Couldn't save that.");
+      setError(prepError(e, t, "prep.saveFailed"));
     }
   }
 
@@ -110,7 +111,7 @@ export function PrepFlow(props: Props) {
       return result.done;
     } catch (e) {
       setSectionsDone(before);
-      setError(e instanceof Error ? e.message : "Couldn't save that.");
+      setError(prepError(e, t, "prep.saveFailed"));
       return null;
     }
   }
@@ -143,10 +144,10 @@ export function PrepFlow(props: Props) {
   const countdown = (
     <div className={prep.flowCount} data-el="interview-countdown">
       <div className={prep.flowCountHead}>
-        <span className={ui.sectionLabel}>{target ? "Your interview" : "Your link"}</span>
+        <span className={ui.sectionLabel}>{target ? t("prep.yourInterview") : t("prep.yourLink")}</span>
       </div>
-      <div className={prep.countWhen}><LocalDate iso={when} options={dateFormat} fallback=" " /></div>
-      <Countdown target={when} label={target ? "Starts in" : "Time left to start"} compact />
+      <div className={prep.countWhen}><LocalDate iso={when} fallback=" " /></div>
+      <Countdown target={when} label={target ? t("prep.startsIn") : t("prep.timeLeftToStart")} compact />
     </div>
   );
 
@@ -161,7 +162,7 @@ export function PrepFlow(props: Props) {
                 <span>{props.kitName}</span>
               </span>
               <div className={prep.progressBlock} data-el="prep-progress">
-                <div className={prep.progressHead}><span>Your prep</span><span className={ui.mono}>{progress.pct}%</span></div>
+                <div className={prep.progressHead}><span>{t("prep.yourPrep")}</span><span className={ui.mono}>{progress.pct}%</span></div>
                 <div className={prep.progressTrack}><motion.span className={prep.progressFill} initial={false} animate={{ width: `${progress.pct}%` }} transition={{ duration: 0.4 }} /></div>
               </div>
             </div>
@@ -176,7 +177,7 @@ export function PrepFlow(props: Props) {
             <div className={prep.progressTrack} style={{ flex: 1 }}><motion.span className={prep.progressFill} initial={false} animate={{ width: `${progress.pct}%` }} transition={{ duration: 0.4 }} /></div>
             <span className={ui.mono} style={{ fontSize: 11.5, color: "var(--w-fg-3)" }}>{progress.pct}%</span>
             <span className={prep.flowTopCount}>
-              <Countdown target={when} label={target ? "Interview in" : "Link valid for"} compact />
+              <Countdown target={when} label={target ? t("prep.interviewIn") : t("prep.linkValidFor")} compact />
             </span>
           </div>
         </div>
@@ -196,17 +197,17 @@ export function PrepFlow(props: Props) {
               data-el={`panel-${active}`}
             >
               <div className={prep.stepKicker}>
-                <span>Step {stepIndex + 1} of {order.length}</span>
-                {active === "read" && sections.length > 1 && <span className={prep.stepKickerSub}>Read {sectionIndex + 1} of {sections.length}</span>}
-                {steps[stepIndex]?.optional && <span className={prep.optionalTag}>Optional</span>}
+                <span>{t("prep.stepOf", { current: stepIndex + 1, total: order.length })}</span>
+                {active === "read" && sections.length > 1 && <span className={prep.stepKickerSub}>{t("prep.readOf", { current: sectionIndex + 1, total: sections.length })}</span>}
+                {steps[stepIndex]?.optional && <span className={prep.optionalTag}>{t("prep.status.optional")}</span>}
               </div>
 
               {active === "welcome" && (
                 <>
                   <div className={prep.welcomeHero}>
                     <div style={{ minWidth: 0 }}>
-                      <h1 id="prep-step-title" ref={heading} tabIndex={-1} className={css.h1} style={{ marginTop: 10, fontSize: "clamp(30px, 4vw, 44px)" }}>Get ready, {first}.<br /><em>Show us how you work.</em></h1>
-                      <p className={css.lead}>This is your prep space. Go through it at your own pace and come back anytime: your progress is saved. Nothing here is graded, and the interview clock only starts when you press Start on the interview page.</p>
+                      <h1 id="prep-step-title" ref={heading} tabIndex={-1} className={css.h1} style={{ marginTop: 10, fontSize: "clamp(30px, 4vw, 44px)" }}>{t("prep.welcome.title", { name: first })}<br /><em>{t("prep.welcome.titleLine2")}</em></h1>
+                      <p className={css.lead}>{t("prep.welcome.lead")}</p>
                     </div>
                     <div className={prep.welcomeArt} aria-hidden="true">
                       <Sprout mood="waving" size={128} />
@@ -215,17 +216,17 @@ export function PrepFlow(props: Props) {
                   </div>
                   {props.welcomeHtml && (
                     <div className={prep.howWeWork} data-el="how-we-work">
-                      <div className={ui.sectionLabel}>How we work</div>
+                      <div className={ui.sectionLabel}>{t("prep.welcome.howWeWork")}</div>
                       <div className={prep.md} dangerouslySetInnerHTML={{ __html: props.welcomeHtml }} />
                     </div>
                   )}
-                  <ol className={prep.ahead} aria-label="What's ahead">
+                  <ol className={prep.ahead} aria-label={t("prep.welcome.ahead")}>
                     {steps.filter((s) => s.id !== "welcome").map((s) => (
                       <li key={s.id} className={prep.aheadItem}>
                         <span className={prep.aheadIcon}>{stepIcon(s.id)}</span>
                         <span className={prep.aheadText}>
-                          <b>{stepTitles[s.id]}</b>
-                          <span>{aheadText(s.id, sections.length, practice)}</span>
+                          <b>{t(stepTitleKeys[s.id])}</b>
+                          <span>{aheadText(t, s.id, sections.length, practice)}</span>
                         </span>
                       </li>
                     ))}
@@ -233,7 +234,7 @@ export function PrepFlow(props: Props) {
                   <div className={prep.stepActions}>
                     <span />
                     <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} onClick={() => { void mark("welcome"); go(stepAfter(steps, "welcome")); }} data-el="welcome-next">
-                      {stepsDone.includes("welcome") ? "Continue" : "Let's start"} <ArrowRight size={14} weight="bold" />
+                      {stepsDone.includes("welcome") ? t("prep.welcome.continue") : t("prep.welcome.start")} <ArrowRight size={14} weight="bold" />
                     </button>
                   </div>
                 </>
@@ -243,12 +244,12 @@ export function PrepFlow(props: Props) {
                 <>
                   <div className={prep.readHead}>
                     <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={prep.stepTitle}>{section.title}</h2>
-                    {sectionsDone.includes(section.id) && <span className={`${ui.chip} ${ui.chipOk}`} data-el="section-done"><Check size={10} weight="bold" /> Done</span>}
+                    {sectionsDone.includes(section.id) && <span className={`${ui.chip} ${ui.chipOk}`} data-el="section-done"><Check size={10} weight="bold" /> {t("prep.status.done")}</span>}
                   </div>
                   {sections.length > 1 && (
-                    <div className={prep.readDots} role="group" aria-label="Reads">
+                    <div className={prep.readDots} role="group" aria-label={t("prep.read.dots")}>
                       {sections.map((s, i) => (
-                        <button key={s.id} type="button" className={prep.readDot} aria-label={`${i + 1}. ${s.title}${sectionsDone.includes(s.id) ? ", done" : ""}`} aria-current={s.id === section.id ? "true" : undefined} data-done={sectionsDone.includes(s.id) || undefined} onClick={() => openSection(s.id)} />
+                        <button key={s.id} type="button" className={prep.readDot} aria-label={sectionsDone.includes(s.id) ? t("prep.stepAriaDone", { index: i + 1, title: s.title }) : t("prep.stepAria", { index: i + 1, title: s.title })} aria-current={s.id === section.id ? "true" : undefined} data-done={sectionsDone.includes(s.id) || undefined} onClick={() => openSection(s.id)} />
                       ))}
                     </div>
                   )}
@@ -271,12 +272,12 @@ export function PrepFlow(props: Props) {
                   )}
                   <div className={prep.stepActions}>
                     <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => (sectionIndex > 0 ? openSection(sectionIds[sectionIndex - 1]) : go("welcome"))}>
-                      <ArrowLeft size={13} /> {sectionIndex > 0 ? "Previous" : "Back"}
+                      <ArrowLeft size={13} /> {sectionIndex > 0 ? t("prep.read.previous") : t("common.back")}
                     </button>
                     <span className={prep.stepActionsRight}>
-                      {sectionsDone.includes(section.id) && <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => void markSection(section.id, false)} data-el="mark-undone">Mark as not done</button>}
+                      {sectionsDone.includes(section.id) && <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={() => void markSection(section.id, false)} data-el="mark-undone">{t("prep.read.markUndone")}</button>}
                       <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} onClick={() => void doneNext()} data-el="done-next">
-                        {sectionsDone.includes(section.id) ? "Next" : "Done, next"} <ArrowRight size={14} weight="bold" />
+                        {sectionsDone.includes(section.id) ? t("prep.read.next") : t("prep.read.doneNext")} <ArrowRight size={14} weight="bold" />
                       </button>
                     </span>
                   </div>
@@ -285,20 +286,20 @@ export function PrepFlow(props: Props) {
 
               {active === "setup" && (
                 <>
-                  <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={prep.stepTitle}>Bring your setup</h2>
-                  <p className={prep.stepLead}>If you already work with skills, a CLAUDE.md or remote MCP servers, add them here and they will be waiting for you in the sandbox{practice ? ", including in the playground" : ""}. They are installed only in your own sandbox when it starts, and the team can see what you brought. Bringing nothing is completely fine.</p>
+                  <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={prep.stepTitle}>{t("prep.setup.title")}</h2>
+                  <p className={prep.stepLead}>{practice ? t("prep.setup.leadWithPlayground") : t("prep.setup.lead")}</p>
                   <div id="bring-setup" data-el="bring-setup">
                     <BringYourSetup token={token} onItems={setBroughtItems} />
                   </div>
                   <div className={prep.footNote} style={{ justifyContent: "flex-start", marginTop: 4 }}>
-                    <LockSimple size={13} /> It never runs on our servers.
+                    <LockSimple size={13} /> {t("prep.setup.neverRuns")}
                   </div>
                   <div className={prep.stepActions}>
-                    <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => previous && go(previous)}><ArrowLeft size={13} /> Back</button>
+                    <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => previous && go(previous)}><ArrowLeft size={13} /> {t("common.back")}</button>
                     <span className={prep.stepActionsRight}>
-                      {broughtItems === 0 && <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => { void mark("setup~skip"); go(stepAfter(steps, "setup")); }} data-el="skip-setup">Skip</button>}
-                      <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} disabled={broughtItems === 0} title={broughtItems === 0 ? "Add something first, or skip" : undefined} onClick={() => { void mark("setup"); go(stepAfter(steps, "setup")); }} data-el="setup-next">
-                        Done, next <ArrowRight size={14} weight="bold" />
+                      {broughtItems === 0 && <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => { void mark("setup~skip"); go(stepAfter(steps, "setup")); }} data-el="skip-setup">{t("prep.setup.skip")}</button>}
+                      <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} disabled={broughtItems === 0} title={broughtItems === 0 ? t("prep.setup.skipHint") : undefined} onClick={() => { void mark("setup"); go(stepAfter(steps, "setup")); }} data-el="setup-next">
+                        {t("prep.setup.next")} <ArrowRight size={14} weight="bold" />
                       </button>
                     </span>
                   </div>
@@ -307,15 +308,15 @@ export function PrepFlow(props: Props) {
 
               {active === "practice" && practice && (
                 <>
-                  <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={prep.stepTitle}>Try the AI</h2>
-                  <p className={prep.stepLead}>{practice.mode === "playground" ? "Spend a few minutes with Claude Code in a sandbox like the one you'll use in the interview. Get used to the layout, try a prompt or two, check that your setup works." : "Do a short warm-up challenge in the same sandbox you'll use in the interview, to get used to the layout before the day."} The team only sees whether you practiced, for how long and how many prompts you sent.</p>
+                  <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={prep.stepTitle}>{t("prep.practice.title")}</h2>
+                  <p className={prep.stepLead}>{practice.mode === "playground" ? t("prep.practice.leadPlayground") : t("prep.practice.leadChallenge")}</p>
                   <Practice token={token} offer={practice} status={practiceStatus} refresh={refreshPractice} />
                   <div className={prep.stepActions}>
-                    <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => previous && go(previous)}><ArrowLeft size={13} /> Back</button>
+                    <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => previous && go(previous)}><ArrowLeft size={13} /> {t("common.back")}</button>
                     <span className={prep.stepActionsRight}>
-                      {!used && <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => { void mark("practice~skip"); go("ready"); }} data-el="skip-practice">Skip</button>}
-                      <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} disabled={!used} title={!used ? "Try it first, or skip" : undefined} onClick={() => { void mark("practice"); go("ready"); }} data-el="practice-next">
-                        Next <ArrowRight size={14} weight="bold" />
+                      {!used && <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => { void mark("practice~skip"); go("ready"); }} data-el="skip-practice">{t("prep.practice.skip")}</button>}
+                      <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${prep.cta}`} disabled={!used} title={!used ? t("prep.practice.skipHint") : undefined} onClick={() => { void mark("practice"); go("ready"); }} data-el="practice-next">
+                        {t("prep.practice.next")} <ArrowRight size={14} weight="bold" />
                       </button>
                     </span>
                   </div>
@@ -356,11 +357,11 @@ function stepIcon(id: StepId) {
   return <HandWaving size={16} />;
 }
 
-function aheadText(id: StepId, reads: number, practice: PracticeOffer | null) {
-  if (id === "read") return `${reads} short read${reads === 1 ? "" : "s"}, one at a time.`;
-  if (id === "setup") return "Optional. Skills, CLAUDE.md and MCP servers you already use.";
-  if (id === "practice") return practice?.mode === "playground" ? `Optional. A ${practice.minutes} minute playground with Claude Code. Not graded.` : `Optional. A ${practice?.minutes ?? 15} minute warm-up. Doesn't count.`;
-  return "The date, a countdown and the way in.";
+function aheadText(t: T, id: StepId, reads: number, practice: PracticeOffer | null) {
+  if (id === "read") return t("prep.ahead.read", { n: reads });
+  if (id === "setup") return t("prep.ahead.setup");
+  if (id === "practice") return practice?.mode === "playground" ? t("prep.ahead.playground", { minutes: practice.minutes }) : t("prep.ahead.practice", { minutes: practice?.minutes ?? 15 });
+  return t("prep.ahead.ready");
 }
 
 type ReadyProps = {
@@ -381,22 +382,23 @@ type ReadyProps = {
 };
 
 function Ready({ heading, token, first, steps, sectionsTotal, sectionsRead, broughtItems, practice, practiceMinutes, practicePrompts, practiceRunning, target, expiresAt, onGo }: ReadyProps) {
+  const { t } = useI18n();
   const open = steps.filter((s) => s.id !== "ready" && !settled(s.status));
   const rows: { id: StepId; label: string; value: string; ok: boolean }[] = [];
   for (const s of steps) {
-    if (s.id === "welcome") rows.push({ id: s.id, label: "How we work", value: s.status === "done" ? "Read" : "Not yet", ok: s.status === "done" });
-    if (s.id === "read") rows.push({ id: s.id, label: "Reads", value: `${sectionsRead} of ${sectionsTotal}`, ok: s.status === "done" });
-    if (s.id === "setup") rows.push({ id: s.id, label: "Your setup", value: broughtItems ? `${broughtItems} item${broughtItems === 1 ? "" : "s"} ready` : s.status === "skipped" ? "Skipped" : "Not yet", ok: settled(s.status) });
-    if (s.id === "practice") rows.push({ id: s.id, label: practice?.mode === "playground" ? "Playground" : "Practice run", value: practiceRunning ? "Running now" : s.status === "done" ? `${practiceMinutes} min, ${practicePrompts} prompt${practicePrompts === 1 ? "" : "s"}` : s.status === "skipped" ? "Skipped" : "Not yet", ok: settled(s.status) });
+    if (s.id === "welcome") rows.push({ id: s.id, label: t("prep.ready.howWeWork"), value: s.status === "done" ? t("prep.ready.read") : t("prep.status.notYet"), ok: s.status === "done" });
+    if (s.id === "read") rows.push({ id: s.id, label: t("prep.ready.reads"), value: t("prep.ready.readsValue", { done: sectionsRead, total: sectionsTotal }), ok: s.status === "done" });
+    if (s.id === "setup") rows.push({ id: s.id, label: t("prep.ready.setup"), value: broughtItems ? t("prep.ready.setupValue", { n: broughtItems }) : s.status === "skipped" ? t("prep.status.skipped") : t("prep.status.notYet"), ok: settled(s.status) });
+    if (s.id === "practice") rows.push({ id: s.id, label: practice?.mode === "playground" ? t("prep.ready.playground") : t("prep.ready.practice"), value: practiceRunning ? t("prep.ready.practiceRunning") : s.status === "done" ? t("prep.ready.practiceValue", { minutes: practiceMinutes, n: practicePrompts }) : s.status === "skipped" ? t("prep.status.skipped") : t("prep.status.notYet"), ok: settled(s.status) });
   }
   const when = target ?? expiresAt;
   return (
     <>
       <div className={prep.readyHero}>
-        <Sprout mood={open.length ? "idle" : "celebrating"} size={104} label={open.length ? "Sprout" : "Sprout celebrating"} />
+        <Sprout mood={open.length ? "idle" : "celebrating"} size={104} label={open.length ? t("candidate.sprout.idle") : t("candidate.sprout.celebrating")} />
         <div style={{ minWidth: 0 }}>
-          <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={`${css.display} ${prep.readyTitle}`}>{open.length ? `Almost there, ${first}.` : `You're ready, ${first}.`}</h2>
-          <p className={prep.stepLead} style={{ marginTop: 8 }}>{open.length ? `${open.length === 1 ? "One step is" : `${open.length} steps are`} still open. None of it is required, but it helps.` : "That's everything. On the day, open the interview page and press Start when you're ready."}</p>
+          <h2 id="prep-step-title" ref={heading} tabIndex={-1} className={`${css.display} ${prep.readyTitle}`}>{open.length ? t("prep.ready.almost", { name: first }) : t("prep.ready.done", { name: first })}</h2>
+          <p className={prep.stepLead} style={{ marginTop: 8 }}>{open.length ? t("prep.ready.open", { n: open.length }) : t("prep.ready.allSet")}</p>
         </div>
       </div>
       <div className={prep.readyGrid}>
@@ -412,11 +414,11 @@ function Ready({ heading, token, first, steps, sectionsTotal, sectionsRead, brou
           ))}
         </ul>
         <div className={prep.readyWhen}>
-          <div className={ui.sectionLabel}>{target ? "Your interview" : "Your link"}</div>
-          <div className={prep.countWhen} style={{ marginTop: 6 }}>{target ? <LocalDate iso={when} options={dateFormat} fallback=" " /> : <>Valid until <LocalDate iso={when} options={dateFormat} fallback=" " /></>}</div>
-          <div style={{ marginTop: 12 }}><Countdown target={when} label={target ? "Starts in" : "Time left to start"} /></div>
-          <Link href={`/s/${token}`} className={`${ui.btn} ${ui.btnPrimary} ${prep.readyGo}`} data-el="to-interview">Go to the interview page <ArrowRight size={14} weight="bold" /></Link>
-          <div className={ui.faint} style={{ fontSize: 11.5, marginTop: 8, textAlign: "center" }}>The clock starts only when you press Start there.</div>
+          <div className={ui.sectionLabel}>{target ? t("prep.yourInterview") : t("prep.yourLink")}</div>
+          <div className={prep.countWhen} style={{ marginTop: 6 }}>{target ? <LocalDate iso={when} fallback=" " /> : <>{t("prep.validUntil")} <LocalDate iso={when} fallback=" " /></>}</div>
+          <div style={{ marginTop: 12 }}><Countdown target={when} label={target ? t("prep.startsIn") : t("prep.timeLeftToStart")} /></div>
+          <Link href={`/s/${token}`} className={`${ui.btn} ${ui.btnPrimary} ${prep.readyGo}`} data-el="to-interview">{t("prep.ready.go")} <ArrowRight size={14} weight="bold" /></Link>
+          <div className={ui.faint} style={{ fontSize: 11.5, marginTop: 8, textAlign: "center" }}>{t("prep.ready.clockNote")}</div>
         </div>
       </div>
     </>

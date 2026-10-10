@@ -40,9 +40,9 @@ describe("skill validation", () => {
 
   it("enforces the total file and byte limits", () => {
     const many = Array.from({ length: SETUP_LIMITS.files + 1 }, (_, i) => ({ path: i ? `f${i}.md` : "SKILL.md", content: "x" }));
-    expect(() => checkTotals({ skills: [{ name: "big", files: many }], claudeMd: null, mcpServers: [] })).toThrow(/limit is 50/);
+    expect(() => checkTotals({ skills: [{ name: "big", files: many }], claudeMd: null, mcpServers: [] })).toThrow("setup.tooManyFiles");
     const heavy = Array.from({ length: 5 }, (_, i) => ({ name: `s${i}`, files: [{ path: "SKILL.md", content: "x".repeat(500 * 1024) }] }));
-    expect(() => checkTotals({ skills: heavy, claudeMd: null, mcpServers: [] })).toThrow(/MB/);
+    expect(() => checkTotals({ skills: heavy, claudeMd: null, mcpServers: [] })).toThrow("setup.tooBig");
   });
 });
 
@@ -56,14 +56,14 @@ describe("MCP servers", () => {
   });
 
   it("refuses stdio commands, bad urls, header injection and the reserved name", () => {
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { fs: { command: "npx", args: ["server"] } } }))).toThrow(/Only remote/);
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { type: "stdio", url: "https://a.b" } } }))).toThrow(/Only remote/);
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "file:///etc/passwd" } } }))).toThrow(/http or https/);
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "https://u:p@a.b" } } }))).toThrow(/credentials/);
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "https://a.b", headers: { A: "1\r\nB: 2" } } } }))).toThrow(/line break/);
-    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { Playwright: { url: "https://a.b" } } }))).toThrow(/reserved/);
-    expect(() => parseMcpPaste(JSON.stringify({ type: "http", url: "https://a.b" }))).toThrow(/Wrap the server/);
-    expect(() => parseMcpPaste("{nope")).toThrow(/valid JSON/);
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { fs: { command: "npx", args: ["server"] } } }))).toThrow("setup.mcpLocalCommand");
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { type: "stdio", url: "https://a.b" } } }))).toThrow("setup.mcpLocalCommand");
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "file:///etc/passwd" } } }))).toThrow("setup.mcpUrlScheme");
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "https://u:p@a.b" } } }))).toThrow("setup.mcpUrlCredentials");
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { x: { url: "https://a.b", headers: { A: "1\r\nB: 2" } } } }))).toThrow("setup.headerLineBreak");
+    expect(() => parseMcpPaste(JSON.stringify({ mcpServers: { Playwright: { url: "https://a.b" } } }))).toThrow("setup.mcpNameReserved");
+    expect(() => parseMcpPaste(JSON.stringify({ type: "http", url: "https://a.b" }))).toThrow("setup.mcpWrapServer");
+    expect(() => parseMcpPaste("{nope")).toThrow("setup.mcpNotJson");
   });
 
   it("masks query values in urls", () => {
@@ -84,8 +84,8 @@ describe("zip safety", () => {
   });
 
   it("rejects path traversal and absolute paths", () => {
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "s/../../etc/x.md")))).toThrow(/outside/);
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "/etc/x.md")))).toThrow(/absolute/);
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "s/../../etc/x.md")))).toThrow("setup.pathOutside");
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "/etc/x.md")))).toThrow("setup.pathAbsolute");
     expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "s\\..\\x.md")))).toThrow(SetupError);
   });
 
@@ -93,21 +93,21 @@ describe("zip safety", () => {
     const buffer = zipOf({ "s/SKILL.md": "a", "s/link": "/etc/passwd" }, (z) => {
       z.getEntry("s/link")!.attr = (0o120777 << 16) >>> 0;
     });
-    expect(() => readSkillZip(buffer)).toThrow(/symlink/);
+    expect(() => readSkillZip(buffer)).toThrow("setup.zipSymlink");
   });
 
   it("rejects binary files and non UTF-8 text", () => {
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/logo.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]) }))).toThrow(/not a text file/);
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/latin.md": Buffer.from([0xff, 0xfe, 0x41]) }))).toThrow(/UTF-8/);
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/logo.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]) }))).toThrow("setup.notText");
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/latin.md": Buffer.from([0xff, 0xfe, 0x41]) }))).toThrow("setup.notUtf8");
   });
 
   it("rejects bombs, too many files, nested skills and junk", () => {
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/big.md": "a".repeat(SETUP_LIMITS.fileBytes + 1) }))).toThrow(/larger than/);
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/big.md": "a".repeat(SETUP_LIMITS.fileBytes + 1) }))).toThrow("setup.fileTooBig");
     const files = Object.fromEntries(Array.from({ length: SETUP_LIMITS.files + 1 }, (_, i) => [i ? `s/f${i}.md` : "s/SKILL.md", "x"]));
-    expect(() => readSkillZip(zipOf(files))).toThrow(/more than 50 files/);
-    expect(() => readSkillZip(zipOf({ "a/SKILL.md": "a", "a/b/SKILL.md": "b" }))).toThrow(/inside the skill/);
-    expect(() => readSkillZip(zipOf({ "a/README.md": "a" }))).toThrow(/No SKILL.md/);
-    expect(() => readSkillZip(Buffer.from("not a zip at all"))).toThrow(/not a valid zip/);
+    expect(() => readSkillZip(zipOf(files))).toThrow("setup.zipTooManyFiles");
+    expect(() => readSkillZip(zipOf({ "a/SKILL.md": "a", "a/b/SKILL.md": "b" }))).toThrow("setup.zipNestedSkill");
+    expect(() => readSkillZip(zipOf({ "a/README.md": "a" }))).toThrow("setup.zipNoSkillMd");
+    expect(() => readSkillZip(Buffer.from("not a zip at all"))).toThrow("setup.zipInvalid");
   });
 });
 

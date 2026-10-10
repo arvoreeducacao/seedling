@@ -26,52 +26,52 @@ function isOddType(attr: number) {
 export type ZipResult = { skills: SetupSkill[]; ignored: string[] };
 
 export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
-  if (buffer.length > SETUP_LIMITS.totalBytes) throw new SetupError(`The zip is larger than ${SETUP_LIMITS.totalBytes / 1024 / 1024} MB.`);
+  if (buffer.length > SETUP_LIMITS.totalBytes) throw new SetupError("setup.zipTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
   let zip: AdmZip;
   try {
     zip = new AdmZip(buffer);
   } catch {
-    throw new SetupError("That file is not a valid zip.");
+    throw new SetupError("setup.zipInvalid");
   }
   let entries: AdmZip.IZipEntry[];
   try {
     entries = zip.getEntries();
   } catch {
-    throw new SetupError("That file is not a valid zip.");
+    throw new SetupError("setup.zipInvalid");
   }
-  if (entries.length > SETUP_LIMITS.zipEntries) throw new SetupError(`The zip has ${entries.length} entries. The limit is ${SETUP_LIMITS.zipEntries}.`);
+  if (entries.length > SETUP_LIMITS.zipEntries) throw new SetupError("setup.zipTooManyEntries", { entries: entries.length, max: SETUP_LIMITS.zipEntries });
   const files: { path: string; content: string }[] = [];
   let declared = 0;
   for (const entry of entries) {
     const raw = entry.entryName;
     if (ignored(raw.replace(/\/$/, ""))) continue;
-    if (isSymlink(entry.attr)) throw new SetupError(`"${printable(raw)}" is a symlink. Zip the real files instead.`);
-    if ((entry.header.flags & ENCRYPTED) !== 0) throw new SetupError("Password-protected zips are not supported.");
+    if (isSymlink(entry.attr)) throw new SetupError("setup.zipSymlink", { path: printable(raw) });
+    if ((entry.header.flags & ENCRYPTED) !== 0) throw new SetupError("setup.zipEncrypted");
     const path = cleanRelativePath(raw);
     if (entry.isDirectory) continue;
-    if (isOddType(entry.attr)) throw new SetupError(`"${printable(raw)}" is not a regular file.`);
+    if (isOddType(entry.attr)) throw new SetupError("setup.zipOddFile", { path: printable(raw) });
     const size = entry.header.size;
-    if (size > SETUP_LIMITS.fileBytes) throw new SetupError(`"${path}" is larger than ${SETUP_LIMITS.fileBytes / 1024} KB.`);
+    if (size > SETUP_LIMITS.fileBytes) throw new SetupError("setup.fileTooBig", { path, kb: SETUP_LIMITS.fileBytes / 1024 });
     declared += size;
-    if (declared > SETUP_LIMITS.totalBytes) throw new SetupError(`The zip unpacks to more than ${SETUP_LIMITS.totalBytes / 1024 / 1024} MB.`);
-    if (files.length >= SETUP_LIMITS.files) throw new SetupError(`The zip has more than ${SETUP_LIMITS.files} files.`);
+    if (declared > SETUP_LIMITS.totalBytes) throw new SetupError("setup.zipUnpacksTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
+    if (files.length >= SETUP_LIMITS.files) throw new SetupError("setup.zipTooManyFiles", { max: SETUP_LIMITS.files });
     let data: Buffer;
     try {
       data = entry.getData();
     } catch {
-      throw new SetupError(`"${path}" could not be read from the zip.`);
+      throw new SetupError("setup.zipUnreadable", { path });
     }
-    if (data.length !== size || data.length > SETUP_LIMITS.fileBytes) throw new SetupError(`"${path}" does not match its declared size.`);
+    if (data.length !== size || data.length > SETUP_LIMITS.fileBytes) throw new SetupError("setup.zipSizeMismatch", { path });
     files.push({ path, content: decodeText(data, `"${path}"`) });
   }
   const roots = files
     .filter((f) => f.path === "SKILL.md" || f.path.endsWith("/SKILL.md"))
     .map((f) => f.path.slice(0, -"SKILL.md".length).replace(/\/$/, ""))
     .sort((a, b) => a.length - b.length);
-  if (!roots.length) throw new SetupError("No SKILL.md found in the zip. Each skill is a folder with a SKILL.md inside.");
+  if (!roots.length) throw new SetupError("setup.zipNoSkillMd");
   for (const root of roots) {
     const parent = roots.find((other) => other !== root && (other === "" || root.startsWith(`${other}/`)));
-    if (parent !== undefined) throw new SetupError(`"${root}" is a skill inside the skill "${parent || archiveName}". Keep skills side by side.`);
+    if (parent !== undefined) throw new SetupError("setup.zipNestedSkill", { path: root, parent: parent || archiveName });
   }
   const skills: SetupSkill[] = [];
   const used = new Set<string>();
@@ -81,7 +81,7 @@ export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
     const main = own.find((f) => f.path === "SKILL.md")!;
     const source = root ? root.split("/").pop()! : frontmatterName(main.content) ?? archiveName.replace(/\.zip$/i, "");
     const name = skillNameFrom(source);
-    if (used.has(name)) throw new SetupError(`Two skills in the zip are named "${name}".`);
+    if (used.has(name)) throw new SetupError("setup.zipDuplicateSkill", { name });
     used.add(name);
     skills.push(checkSkill({ name, files: own }));
   }

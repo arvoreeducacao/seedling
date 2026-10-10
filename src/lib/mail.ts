@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "@/lib/env";
+import { dayOnly } from "@/lib/format";
+import { defaultLocale, i18nFor, type Locale } from "@/lib/i18n";
 
 function escape(text: string) {
   return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -9,40 +11,70 @@ export function mailConfigured() {
   return Boolean(env.smtpUrl);
 }
 
-export async function sendInvite(input: { to: string; url: string; challenges: number; minutes: number; mode: "live" | "async"; expiresAt: Date }) {
-  if (!env.smtpUrl) return false;
-  const transport = nodemailer.createTransport(env.smtpUrl);
-  const deadline = input.expiresAt.toLocaleDateString("en-US", { weekday: "short", day: "2-digit", month: "short", timeZone: process.env.NEXT_PUBLIC_SEEDLING_TIMEZONE || undefined });
-  const how = input.mode === "live" ? "Agree on a time with the person who invited you and open the link when the call starts." : "Open the link on a computer when you are ready. The clock only starts when you click Start.";
+export type InviteInput = { to: string; url: string; challenges: number; minutes: number; mode: "live" | "async"; expiresAt: Date; locale?: Locale };
+
+export type Message = { subject: string; text: string; html: string };
+
+const frame = (body: string) => `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111;max-width:520px">\n${body}</div>`;
+
+const button = (url: string, label: string) =>
+  `<p><a href="${escape(url)}" style="display:inline-block;background:#2f7d3c;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">${label}</a></p>`;
+
+export function inviteMessage(input: InviteInput): Message {
+  const i18n = i18nFor(input.locale ?? defaultLocale);
+  const { t } = i18n;
+  const deadline = dayOnly(i18n, input.expiresAt);
+  const challenges = t("common.challenges", { n: input.challenges });
+  const minutes = t("mail.invite.minutes", { n: input.minutes });
+  const how = t(input.mode === "live" ? "mail.invite.howLive" : "mail.invite.howAsync");
   const text = [
-    `Hi! You have been invited to a coding interview with ${env.orgName}.`,
+    t("mail.invite.greeting", { org: env.orgName }),
     "",
-    `There ${input.challenges === 1 ? "is 1 challenge" : `are ${input.challenges} challenges`}, about ${input.minutes} minutes. You can use Claude, which we make available during the session.`,
+    t("mail.invite.scope", { n: input.challenges, challenges, minutes }),
     how,
     "",
-    "Before the interview, the same link opens your prep space: how the team works, what to read, and a place to bring your own Claude Code setup.",
+    t("mail.invite.prep"),
     "",
-    `Link (valid until ${deadline}): ${input.url}`,
+    t("mail.invite.link", { deadline, url: input.url }),
   ].join("\n");
-  const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111;max-width:520px">
-<p>Hi! You have been invited to a coding interview with ${escape(env.orgName)}.</p>
-<p>There ${input.challenges === 1 ? "is <b>1 challenge</b>" : `are <b>${input.challenges} challenges</b>`}, about <b>${input.minutes} minutes</b>. You can use Claude, which we make available during the session.</p>
-<p>${escape(how)}</p>
-<p>Before the interview, the same link opens your prep space: how the team works, what to read, and a place to bring your own Claude Code setup.</p>
-<p><a href="${escape(input.url)}" style="display:inline-block;background:#2f7d3c;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Open the session</a></p>
-<p style="color:#666;font-size:12px">The link is valid until ${escape(deadline)}. Once you press Start, it only works in that browser.</p></div>`;
-  await transport.sendMail({ from: env.mailFrom, to: input.to, subject: `Your coding interview with ${env.orgName}`, text, html });
+  const html = frame(
+    [
+      `<p>${t("mail.invite.greeting", { org: escape(env.orgName) })}</p>`,
+      `<p>${t("mail.invite.scope", { n: input.challenges, challenges: `<b>${escape(challenges)}</b>`, minutes: `<b>${escape(minutes)}</b>` })}</p>`,
+      `<p>${escape(how)}</p>`,
+      `<p>${t("mail.invite.prep")}</p>`,
+      button(input.url, t("mail.invite.cta")),
+      `<p style="color:#666;font-size:12px">${t("mail.invite.validity", { deadline: escape(deadline) })}</p>`,
+    ].join("\n"),
+  );
+  return { subject: t("mail.invite.subject", { org: env.orgName }), text, html };
+}
+
+export function verificationMessage(input: { url: string; locale?: Locale }): Message {
+  const { t } = i18nFor(input.locale ?? defaultLocale);
+  const text = [t("mail.verify.textLead", { org: env.orgName }), "", input.url, "", t("mail.verify.ignore")].join("\n");
+  const html = frame(
+    [
+      `<p>${t("mail.verify.htmlLead", { org: escape(env.orgName) })}</p>`,
+      button(input.url, t("mail.verify.cta")),
+      `<p style="color:#666;font-size:12px">${t("mail.verify.ignore")}</p>`,
+    ].join("\n"),
+  );
+  return { subject: t("mail.verify.subject", { org: env.orgName }), text, html };
+}
+
+async function send(to: string, message: Message) {
+  const transport = nodemailer.createTransport(env.smtpUrl);
+  await transport.sendMail({ from: env.mailFrom, to, ...message });
   return true;
 }
 
-export async function sendVerification(input: { to: string; url: string }) {
+export async function sendInvite(input: InviteInput) {
   if (!env.smtpUrl) return false;
-  const transport = nodemailer.createTransport(env.smtpUrl);
-  const text = [`Confirm your email to finish creating your ${env.orgName} interviewer account:`, "", input.url, "", "If you did not try to sign up, ignore this message."].join("\n");
-  const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111;max-width:520px">
-<p>Confirm your email to finish creating your ${escape(env.orgName)} interviewer account.</p>
-<p><a href="${escape(input.url)}" style="display:inline-block;background:#2f7d3c;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Confirm email</a></p>
-<p style="color:#666;font-size:12px">If you did not try to sign up, ignore this message.</p></div>`;
-  await transport.sendMail({ from: env.mailFrom, to: input.to, subject: `Confirm your email for ${env.orgName}`, text, html });
-  return true;
+  return send(input.to, inviteMessage(input));
+}
+
+export async function sendVerification(input: { to: string; url: string; locale?: Locale }) {
+  if (!env.smtpUrl) return false;
+  return send(input.to, verificationMessage(input));
 }

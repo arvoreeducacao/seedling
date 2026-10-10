@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `locale` text DEFAULT 'en' NOT NULL;

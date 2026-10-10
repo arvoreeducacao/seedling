@@ -1,4 +1,5 @@
 import type { SetupMcpServer, SetupSkill, SetupSkillFile } from "@/lib/db/schema";
+import { AppError } from "@/lib/i18n";
 
 export const SETUP_LIMITS = {
   totalBytes: 2 * 1024 * 1024,
@@ -14,7 +15,7 @@ export const SETUP_LIMITS = {
 
 export const RESERVED_MCP_NAMES = new Set(["playwright"]);
 
-export class SetupError extends Error {}
+export class SetupError extends AppError {}
 
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MCP_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -41,15 +42,15 @@ export function skillNameFrom(raw: string) {
 }
 
 export function cleanRelativePath(raw: string) {
-  if (raw.includes("\0") || raw.includes("\\")) throw new SetupError(`"${printable(raw)}" is not a valid path.`);
-  if (raw.startsWith("/") || /^[A-Za-z]:/.test(raw)) throw new SetupError(`"${printable(raw)}" is an absolute path.`);
+  if (raw.includes("\0") || raw.includes("\\")) throw new SetupError("setup.pathInvalid", { path: printable(raw) });
+  if (raw.startsWith("/") || /^[A-Za-z]:/.test(raw)) throw new SetupError("setup.pathAbsolute", { path: printable(raw) });
   const parts = raw.split("/").filter((p) => p !== "" && p !== ".");
-  if (!parts.length) throw new SetupError("Empty path.");
+  if (!parts.length) throw new SetupError("setup.pathEmpty");
   for (const part of parts) {
-    if (part === "..") throw new SetupError(`"${printable(raw)}" points outside the skill folder.`);
-    if (!SEGMENT.test(part)) throw new SetupError(`"${printable(raw)}" has an unsupported name. Use letters, numbers, dot, dash and underscore.`);
+    if (part === "..") throw new SetupError("setup.pathOutside", { path: printable(raw) });
+    if (!SEGMENT.test(part)) throw new SetupError("setup.pathUnsupported", { path: printable(raw) });
   }
-  if (parts.length > 8) throw new SetupError(`"${printable(raw)}" is nested too deep.`);
+  if (parts.length > 8) throw new SetupError("setup.pathTooDeep", { path: printable(raw) });
   return parts.join("/");
 }
 
@@ -58,11 +59,11 @@ export function printable(text: string) {
 }
 
 export function decodeText(buffer: Buffer, label: string) {
-  if (buffer.includes(0)) throw new SetupError(`${label} is not a text file.`);
+  if (buffer.includes(0)) throw new SetupError("setup.notText", { label });
   try {
     return utf8.decode(buffer);
   } catch {
-    throw new SetupError(`${label} is not a UTF-8 text file.`);
+    throw new SetupError("setup.notUtf8", { label });
   }
 }
 
@@ -74,97 +75,97 @@ export function frontmatterName(skillMd: string) {
 }
 
 export function checkSkill(skill: SetupSkill): SetupSkill {
-  if (!validSkillName(skill.name)) throw new SetupError(`"${printable(skill.name)}" is not a valid skill name. Use lowercase letters, numbers and dashes, up to 64 characters.`);
-  if (!skill.files.length) throw new SetupError(`Skill "${skill.name}" has no files.`);
+  if (!validSkillName(skill.name)) throw new SetupError("setup.skillNameInvalid", { name: printable(skill.name) });
+  if (!skill.files.length) throw new SetupError("setup.skillNoFiles", { name: skill.name });
   const seen = new Set<string>();
   const files: SetupSkillFile[] = [];
   for (const file of skill.files) {
     const path = cleanRelativePath(file.path);
-    if (seen.has(path)) throw new SetupError(`Skill "${skill.name}" has "${path}" twice.`);
+    if (seen.has(path)) throw new SetupError("setup.skillDuplicatePath", { name: skill.name, path });
     seen.add(path);
-    if (byteLength(file.content) > SETUP_LIMITS.fileBytes) throw new SetupError(`"${skill.name}/${path}" is larger than ${SETUP_LIMITS.fileBytes / 1024} KB.`);
-    if (file.content.includes("\0")) throw new SetupError(`"${skill.name}/${path}" is not a text file.`);
+    if (byteLength(file.content) > SETUP_LIMITS.fileBytes) throw new SetupError("setup.fileTooBig", { path: `${skill.name}/${path}`, kb: SETUP_LIMITS.fileBytes / 1024 });
+    if (file.content.includes("\0")) throw new SetupError("setup.fileNotText", { path: `${skill.name}/${path}` });
     files.push({ path, content: file.content });
   }
   const main = files.find((f) => f.path === "SKILL.md");
-  if (!main) throw new SetupError(`Skill "${skill.name}" needs a SKILL.md at its root.`);
-  if (!main.content.trim()) throw new SetupError(`The SKILL.md of "${skill.name}" is empty.`);
+  if (!main) throw new SetupError("setup.skillNeedsSkillMd", { name: skill.name });
+  if (!main.content.trim()) throw new SetupError("setup.skillMdEmpty", { name: skill.name });
   files.sort((a, b) => Number(b.path === "SKILL.md") - Number(a.path === "SKILL.md") || a.path.localeCompare(b.path));
   return { name: skill.name, files };
 }
 
 export function pastedSkill(name: unknown, content: unknown): SetupSkill {
-  if (typeof content !== "string" || !content.trim()) throw new SetupError("Paste the content of the SKILL.md.");
+  if (typeof content !== "string" || !content.trim()) throw new SetupError("setup.pasteSkillMd");
   const fromBody = frontmatterName(content);
   const raw = typeof name === "string" && name.trim() ? name.trim() : fromBody ?? "";
-  if (!raw) throw new SetupError("Give the skill a name, or add a name: line to its frontmatter.");
+  if (!raw) throw new SetupError("setup.skillNeedsName");
   return checkSkill({ name: raw, files: [{ path: "SKILL.md", content }] });
 }
 
 export function checkClaudeMd(content: unknown) {
-  if (typeof content !== "string") throw new SetupError("CLAUDE.md must be text.");
-  if (content.includes("\0")) throw new SetupError("CLAUDE.md is not a text file.");
-  if (byteLength(content) > SETUP_LIMITS.claudeMdBytes) throw new SetupError(`CLAUDE.md is larger than ${SETUP_LIMITS.claudeMdBytes / 1024} KB.`);
+  if (typeof content !== "string") throw new SetupError("setup.claudeMdMustBeText");
+  if (content.includes("\0")) throw new SetupError("setup.claudeMdNotText");
+  if (byteLength(content) > SETUP_LIMITS.claudeMdBytes) throw new SetupError("setup.claudeMdTooBig", { kb: SETUP_LIMITS.claudeMdBytes / 1024 });
   return content.trim() ? content : null;
 }
 
 function checkUrl(raw: unknown, name: string) {
-  if (typeof raw !== "string" || !raw.trim()) throw new SetupError(`MCP server "${name}" needs a url.`);
+  if (typeof raw !== "string" || !raw.trim()) throw new SetupError("setup.mcpNeedsUrl", { name });
   let url: URL;
   try {
     url = new URL(raw.trim());
   } catch {
-    throw new SetupError(`MCP server "${name}" has an invalid url.`);
+    throw new SetupError("setup.mcpBadUrl", { name });
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new SetupError(`MCP server "${name}" must use an http or https url.`);
-  if (url.username || url.password) throw new SetupError(`MCP server "${name}" has credentials in the url. Move them to a header.`);
-  if (url.href.length > 2048) throw new SetupError(`MCP server "${name}" has a url that is too long.`);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new SetupError("setup.mcpUrlScheme", { name });
+  if (url.username || url.password) throw new SetupError("setup.mcpUrlCredentials", { name });
+  if (url.href.length > 2048) throw new SetupError("setup.mcpUrlTooLong", { name });
   return url.href;
 }
 
 function checkHeaders(raw: unknown, name: string) {
   if (raw === undefined || raw === null) return {};
-  if (typeof raw !== "object" || Array.isArray(raw)) throw new SetupError(`The headers of "${name}" must be an object.`);
+  if (typeof raw !== "object" || Array.isArray(raw)) throw new SetupError("setup.mcpHeadersObject", { name });
   const entries = Object.entries(raw as Record<string, unknown>);
-  if (entries.length > SETUP_LIMITS.headers) throw new SetupError(`MCP server "${name}" has more than ${SETUP_LIMITS.headers} headers.`);
+  if (entries.length > SETUP_LIMITS.headers) throw new SetupError("setup.mcpTooManyHeaders", { name, max: SETUP_LIMITS.headers });
   const headers: Record<string, string> = {};
   for (const [key, value] of entries) {
-    if (!HEADER_NAME.test(key)) throw new SetupError(`"${printable(key)}" is not a valid header name.`);
-    if (typeof value !== "string") throw new SetupError(`The header ${key} of "${name}" must be text.`);
-    if (/[\r\n\0]/.test(value)) throw new SetupError(`The header ${key} of "${name}" has a line break.`);
-    if (byteLength(value) > SETUP_LIMITS.headerValueBytes) throw new SetupError(`The header ${key} of "${name}" is too long.`);
+    if (!HEADER_NAME.test(key)) throw new SetupError("setup.headerNameInvalid", { header: printable(key) });
+    if (typeof value !== "string") throw new SetupError("setup.headerMustBeText", { header: key, name });
+    if (/[\r\n\0]/.test(value)) throw new SetupError("setup.headerLineBreak", { header: key, name });
+    if (byteLength(value) > SETUP_LIMITS.headerValueBytes) throw new SetupError("setup.headerTooLong", { header: key, name });
     headers[key] = value;
   }
   return headers;
 }
 
 export function checkMcpServer(name: string, raw: unknown): SetupMcpServer {
-  if (!MCP_NAME.test(name)) throw new SetupError(`"${printable(name)}" is not a valid MCP server name. Use letters, numbers, dash and underscore.`);
-  if (RESERVED_MCP_NAMES.has(name.toLowerCase())) throw new SetupError(`"${name}" is reserved for the sandbox browser. Pick another name.`);
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new SetupError(`MCP server "${name}" must be an object.`);
+  if (!MCP_NAME.test(name)) throw new SetupError("setup.mcpNameInvalid", { name: printable(name) });
+  if (RESERVED_MCP_NAMES.has(name.toLowerCase())) throw new SetupError("setup.mcpNameReserved", { name });
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new SetupError("setup.mcpMustBeObject", { name });
   const config = raw as Record<string, unknown>;
-  if ("command" in config || "args" in config || config.type === "stdio") throw new SetupError(`MCP server "${name}" runs a local command. Only remote servers (http or sse) are allowed.`);
+  if ("command" in config || "args" in config || config.type === "stdio") throw new SetupError("setup.mcpLocalCommand", { name });
   const type = config.type ?? config.transport ?? "http";
-  if (type !== "http" && type !== "sse" && type !== "streamable-http") throw new SetupError(`MCP server "${name}" has type "${printable(String(type))}". Use http or sse.`);
+  if (type !== "http" && type !== "sse" && type !== "streamable-http") throw new SetupError("setup.mcpBadType", { name, type: printable(String(type)) });
   return { name, type: type === "sse" ? "sse" : "http", url: checkUrl(config.url, name), headers: checkHeaders(config.headers, name) };
 }
 
 export function parseMcpPaste(text: unknown): SetupMcpServer[] {
-  if (typeof text !== "string" || !text.trim()) throw new SetupError("Paste a JSON with your MCP servers.");
-  if (byteLength(text) > 64 * 1024) throw new SetupError("That MCP config is too large.");
+  if (typeof text !== "string" || !text.trim()) throw new SetupError("setup.mcpPasteJson");
+  if (byteLength(text) > 64 * 1024) throw new SetupError("setup.mcpConfigTooLarge");
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new SetupError("That is not valid JSON.");
+    throw new SetupError("setup.mcpNotJson");
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new SetupError("Expected a JSON object.");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new SetupError("setup.mcpExpectedObject");
   const root = parsed as Record<string, unknown>;
   const map = (root.mcpServers ?? root.servers ?? root) as unknown;
-  if (!map || typeof map !== "object" || Array.isArray(map)) throw new SetupError("Expected an mcpServers object.");
+  if (!map || typeof map !== "object" || Array.isArray(map)) throw new SetupError("setup.mcpExpectedServers");
   const entries = Object.entries(map as Record<string, unknown>);
-  if (!entries.length) throw new SetupError("No MCP servers found in that JSON.");
-  if ("url" in (map as object) || "type" in (map as object)) throw new SetupError('Wrap the server in a name, like {"mcpServers": {"my-server": {"type": "http", "url": "..."}}}.');
+  if (!entries.length) throw new SetupError("setup.mcpNoServers");
+  if ("url" in (map as object) || "type" in (map as object)) throw new SetupError("setup.mcpWrapServer");
   return entries.map(([name, config]) => checkMcpServer(name, config));
 }
 
@@ -178,11 +179,11 @@ export function setupTotals(input: { skills: SetupSkill[]; claudeMd: string | nu
 }
 
 export function checkTotals(input: { skills: SetupSkill[]; claudeMd: string | null; mcpServers: SetupMcpServer[] }) {
-  if (input.skills.length > SETUP_LIMITS.skills) throw new SetupError(`You can bring up to ${SETUP_LIMITS.skills} skills.`);
-  if (input.mcpServers.length > SETUP_LIMITS.mcpServers) throw new SetupError(`You can bring up to ${SETUP_LIMITS.mcpServers} MCP servers.`);
+  if (input.skills.length > SETUP_LIMITS.skills) throw new SetupError("setup.tooManySkills", { max: SETUP_LIMITS.skills });
+  if (input.mcpServers.length > SETUP_LIMITS.mcpServers) throw new SetupError("setup.tooManyMcpServers", { max: SETUP_LIMITS.mcpServers });
   const totals = setupTotals(input);
-  if (totals.files > SETUP_LIMITS.files) throw new SetupError(`Your setup has ${totals.files} files. The limit is ${SETUP_LIMITS.files}.`);
-  if (totals.bytes > SETUP_LIMITS.totalBytes) throw new SetupError(`Your setup is ${(totals.bytes / 1024 / 1024).toFixed(1)} MB. The limit is ${SETUP_LIMITS.totalBytes / 1024 / 1024} MB.`);
+  if (totals.files > SETUP_LIMITS.files) throw new SetupError("setup.tooManyFiles", { files: totals.files, max: SETUP_LIMITS.files });
+  if (totals.bytes > SETUP_LIMITS.totalBytes) throw new SetupError("setup.tooBig", { mb: (totals.bytes / 1024 / 1024).toFixed(1), max: SETUP_LIMITS.totalBytes / 1024 / 1024 });
   return totals;
 }
 

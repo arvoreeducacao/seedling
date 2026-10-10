@@ -1,6 +1,7 @@
 import { denied, prepClosedReason, prepSession } from "@/lib/prep/request";
 import { markStep } from "@/lib/prep";
 import { markable, type StepMark } from "@/lib/prep/steps";
+import { i18nFromRequest } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (shut) return shut;
   const body = (await req.json().catch(() => null)) as { mark?: unknown; on?: unknown } | null;
   const mark = typeof body?.mark === "string" && (markable as string[]).includes(body.mark) ? (body.mark as StepMark) : null;
-  if (!mark) return Response.json({ error: "unknown step" }, { status: 400 });
+  if (!mark) return Response.json({ error: i18nFromRequest(req).t("server.unknownStep") }, { status: 400 });
   const stepsDone = await markStep(session.id, mark, body?.on !== false);
   return Response.json({ stepsDone });
 }

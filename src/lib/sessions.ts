@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { AppError, defaultLocale, type Key, type Locale } from "@/lib/i18n";
 import { db, ready, schema } from "@/lib/db";
 import { hashToken, newId, newToken, sameHash } from "@/lib/crypto";
 import { dataPath, env } from "@/lib/env";
@@ -46,6 +47,7 @@ export async function createInvite(input: {
   mode: "live" | "async";
   inviteDays: number;
   scheduledAt?: Date | null;
+  locale?: Locale;
   createdBy: string;
 }) {
   await ready();
@@ -57,6 +59,7 @@ export async function createInvite(input: {
     candidateEmail: input.email.trim().toLowerCase(),
     candidateName: input.name ?? null,
     mode: input.mode,
+    locale: input.locale ?? defaultLocale,
     inviteTokenHash: hashToken(token),
     inviteExpiresAt: inviteExpiry(input.inviteDays, input.scheduledAt ?? null),
     scheduledAt: input.scheduledAt ?? null,
@@ -158,11 +161,11 @@ export async function startContainer(session: Session, passToken: string) {
 }
 
 export async function startSession(session: Session) {
-  if (session.status !== "invited") throw new Error("this session has already started");
-  if (session.inviteExpiresAt.getTime() < Date.now()) throw new Error("the invite has expired");
-  if (!session.practiceOf) await endPractice(session.id, "the interview started");
+  if (session.status !== "invited") throw new AppError("server.alreadyStarted");
+  if (session.inviteExpiresAt.getTime() < Date.now()) throw new AppError("server.inviteExpired");
+  if (!session.practiceOf) await endPractice(session.id, "revoke.interviewStarted");
   const running = await sandbox().running();
-  if (session.practiceOf ? !practiceRoomFree(running, env.sandbox.maxConcurrent) : running >= env.sandbox.maxConcurrent) throw new Error("All rooms are busy right now. Try again in a few minutes.");
+  if (session.practiceOf ? !practiceRoomFree(running, env.sandbox.maxConcurrent) : running >= env.sandbox.maxConcurrent) throw new AppError("server.roomsBusy");
   const cookie = newToken("cnd");
   const startedAt = new Date();
   const updated = { ...session, status: "running" as const, startedAt, candidateCookieHash: hashToken(cookie) };
@@ -189,24 +192,24 @@ export async function practiceSession(parentId: string) {
   return practice ? { practice, token: progress.practiceToken } : null;
 }
 
-async function endPractice(parentId: string, reason: string) {
+async function endPractice(parentId: string, reason: Key) {
   const found = await practiceSession(parentId);
   if (found?.practice.status === "running") await finish(found.practice, "submitted", reason);
 }
 
 export async function startPractice(parent: Session, kit: Kit) {
-  if (parent.practiceOf) throw new Error("this is already a practice session");
-  if (parent.status !== "invited") throw new Error("Practice closes once the interview starts.");
+  if (parent.practiceOf) throw new AppError("server.alreadyPractice");
+  if (parent.status !== "invited") throw new AppError("server.practiceClosed");
   const plan = practicePlan(kit.practice);
-  if (!plan) throw new Error("There is no practice run set up for this interview.");
+  if (!plan) throw new AppError("server.noPracticeRun");
   const existing = await practiceSession(parent.id);
   if (existing) {
     if (existing.practice.status === "running" && existing.token) return { token: existing.token, cookie: null };
-    throw new Error("You already used your practice run.");
+    throw new AppError("server.practiceUsed");
   }
   if (plan.kind === "challenge") {
     const challenge = await db.query.challenges.findFirst({ where: and(eq(schema.challenges.id, plan.challengeId), eq(schema.challenges.status, "published")) });
-    if (!challenge) throw new Error("The practice challenge is no longer available.");
+    if (!challenge) throw new AppError("server.practiceChallengeGone");
   }
   const challengeIds = plan.kind === "challenge" ? [plan.challengeId] : [];
   const token = newToken("inv");
@@ -280,13 +283,13 @@ async function grade(session: Session, index: number) {
 }
 
 export async function submitCurrent(session: Session, actor: string) {
-  if (session.status !== "running") throw new Error("the session is not in progress");
+  if (session.status !== "running") throw new AppError("server.sessionNotInProgress");
   const index = session.currentIndex;
   await logEvent(session.id, "submit", actor, { index });
   await stopContainer(session.id);
   const isLast = index >= session.challengeIds.length - 1;
   if (isLast) {
-    await finish(session, "submitted", "submitted the last challenge");
+    await finish(session, "submitted", "revoke.lastSubmitted");
     void grade(session, index);
     return { finished: true };
   }
@@ -301,7 +304,7 @@ export async function submitCurrent(session: Session, actor: string) {
   return { finished: false };
 }
 
-export async function finish(session: Session, status: "submitted" | "expired" | "cancelled", reason: string) {
+export async function finish(session: Session, status: "submitted" | "expired" | "cancelled", reason: Key) {
   await db.update(schema.sessions).set({ status, endedAt: new Date() }).where(eq(schema.sessions.id, session.id));
   await revokePasses(session.id, reason);
   await passStore.clear(session.id);
@@ -318,8 +321,8 @@ export async function extend(session: Session, minutes: number, actor: string) {
 }
 
 export async function revokeAi(session: Session, actor: string) {
-  await revokePasses(session.id, `turned off by ${actor}`);
-  await logEvent(session.id, "revoke", actor, { reason: "turned off by the interviewer" });
+  await revokePasses(session.id, "revoke.byInterviewer");
+  await logEvent(session.id, "revoke", actor, { reason: "revoke.byInterviewer" });
 }
 
 export async function sweep() {
@@ -328,7 +331,7 @@ export async function sweep() {
   for (const session of running) {
     if (remainingMs(session) <= 0) {
       const index = session.currentIndex;
-      await finish(session, "expired", "time ran out");
+      await finish(session, "expired", "revoke.timeRanOut");
       void grade(session, index);
     }
   }

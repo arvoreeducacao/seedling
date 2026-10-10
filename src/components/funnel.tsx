@@ -1,3 +1,5 @@
+import type { I18n } from "@/lib/i18n";
+
 type S = { status: string; decision: string | null };
 
 export function funnelCounts(sessions: S[]) {
@@ -8,11 +10,11 @@ export function funnelCounts(sessions: S[]) {
   return { invited, did, evaluated, advanced };
 }
 
-export function Funnel({ sessions }: { sessions: S[] }) {
+export function Funnel({ i18n, sessions }: { i18n: I18n; sessions: S[] }) {
   const c = funnelCounts(sessions);
   const pct = (n: number) => (c.invited ? (n / c.invited) * 100 : 0);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-label={`${c.invited} invited, ${c.did} took it, ${c.evaluated} reviewed, ${c.advanced} advanced`}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-label={i18n.t("funnel.label", { invited: c.invited, did: c.did, evaluated: c.evaluated, advanced: c.advanced })}>
       <div style={{ width: "100%", maxWidth: 240, display: "flex", flexDirection: "column", gap: 3 }}>
         <div style={{ height: 6, width: c.invited ? "100%" : "0%", background: "var(--surface-3)", borderRadius: 3 }} />
         <div style={{ height: 6, width: `${pct(c.did)}%`, background: "var(--text-3)", borderRadius: 3 }} />

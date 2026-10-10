@@ -16,7 +16,7 @@ export async function updateChallenge(id: string, formData: FormData) {
   await db
     .update(schema.challenges)
     .set({
-      title: String(formData.get("title") ?? "").trim() || "Untitled challenge",
+      title: String(formData.get("title") ?? "").trim(),
       level: ["junior", "pleno", "senior"].includes(level) ? level : "pleno",
       kind: kind === "screen" ? "screen" : "code",
       minutes: Math.max(5, Math.min(480, Number(formData.get("minutes") ?? 30))),
@@ -25,7 +25,7 @@ export async function updateChallenge(id: string, formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(schema.challenges.id, id));
-  await audit(admin.email, "edited challenge", id);
+  await audit(admin.email, "challenges.audit.edited", id);
   revalidatePath(`/challenges/${id}`);
 }
 
@@ -40,7 +40,7 @@ export async function publish(id: string) {
   const challenge = await db.query.challenges.findFirst({ where: eq(schema.challenges.id, id) });
   if (!challenge || challenge.status === "error" || challenge.status === "checking") return;
   await db.update(schema.challenges).set({ status: "published", updatedAt: new Date() }).where(eq(schema.challenges.id, id));
-  await audit(admin.email, "published challenge", id);
+  await audit(admin.email, "challenges.audit.published", id);
   revalidatePath("/challenges");
   revalidatePath(`/challenges/${id}`);
 }
@@ -48,7 +48,7 @@ export async function publish(id: string) {
 export async function unpublish(id: string) {
   const admin = await requireAdmin();
   await db.update(schema.challenges).set({ status: "draft", updatedAt: new Date() }).where(eq(schema.challenges.id, id));
-  await audit(admin.email, "unpublished challenge", id);
+  await audit(admin.email, "challenges.audit.unpublished", id);
   revalidatePath(`/challenges/${id}`);
 }
 
@@ -57,6 +57,6 @@ export async function removeChallenge(id: string) {
   await db.delete(schema.challengeFiles).where(eq(schema.challengeFiles.challengeId, id));
   await db.delete(schema.challenges).where(eq(schema.challenges.id, id));
   await fs.rm(dataPath("challenges", id), { recursive: true, force: true });
-  await audit(admin.email, "deleted challenge", id);
+  await audit(admin.email, "challenges.audit.deleted", id);
   redirect("/challenges");
 }

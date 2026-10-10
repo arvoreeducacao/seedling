@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, DotsThree, FileCode, Flask, GitDiff, Play, XCircle } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
+import { useI18n } from "@/components/i18n";
+import { challengeTitle } from "@/lib/format";
 import { Keys, ShimmerLines, TaskRow, spring } from "./ai";
 import { parseTestLines } from "./test-lines";
 import ui from "./ui.module.css";
@@ -29,26 +31,28 @@ export function Empty({ icon, title, children }: { icon: React.ReactNode; title:
 }
 
 export function BriefPanel({ challenge, index, total, playground }: { challenge: Challenge | null; index: number; total: number; playground?: boolean }) {
-  if (!challenge) return <Empty icon={<FileCode size={18} />} title="No challenge loaded" />;
+  const i18n = useI18n();
+  const { t } = i18n;
+  if (!challenge) return <Empty icon={<FileCode size={18} />} title={t("workspace.noChallenge")} />;
   const isScreen = challenge.kind === "screen";
   return (
     <div className={ui.scroll} data-el="brief">
       <div className={ui.section} style={{ borderBottom: "1px solid var(--w-line)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {playground ? (
-            <span className={ui.sectionLabel}>Free practice · not graded</span>
+            <span className={ui.sectionLabel}>{t("workspace.freePractice")}</span>
           ) : (
             <>
-              <span className={ui.sectionLabel}>Challenge {String(index + 1).padStart(2, "0")} of {String(total).padStart(2, "0")}</span>
-              <span className={ui.chip}>{isScreen ? "UI challenge" : "Code challenge"}</span>
+              <span className={ui.sectionLabel}>{t("workspace.challengeOf", { index: String(index + 1).padStart(2, "0"), total: String(total).padStart(2, "0") })}</span>
+              <span className={ui.chip}>{t(isScreen ? "workspace.uiChallenge" : "workspace.codeChallenge")}</span>
             </>
           )}
         </div>
-        <h2 className={ui.briefTitle}>{challenge.title}</h2>
+        <h2 className={ui.briefTitle}>{challengeTitle(i18n, challenge.title)}</h2>
       </div>
       {isScreen && challenge.flow.length > 0 && (
         <div className={ui.section} style={{ paddingBottom: 0 }} data-el="expected-flow">
-          <div className={ui.sectionLabel} style={{ marginBottom: 10 }}>Expected flow</div>
+          <div className={ui.sectionLabel} style={{ marginBottom: 10 }}>{t("workspace.expectedFlow")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {challenge.flow.map((f, i) => (
               <div key={i} className={ui.flowItem}>
@@ -66,7 +70,7 @@ export function BriefPanel({ challenge, index, total, playground }: { challenge:
         <div className={ui.prose} dangerouslySetInnerHTML={{ __html: challenge.statementHtml }} />
         {isScreen && challenge.states.length > 0 && (
           <div className={ui.callout} style={{ marginTop: 14 }} data-el="scored-states">
-            <div className={ui.sectionLabel} style={{ marginBottom: 8 }}>States that score</div>
+            <div className={ui.sectionLabel} style={{ marginBottom: 8 }}>{t("workspace.statesThatScore")}</div>
             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }} className={ui.muted}>
               {challenge.states.map((s) => (
                 <li key={s} style={{ display: "flex", gap: 8 }}><CheckCircle size={14} style={{ color: "var(--w-fg-3)", flex: "none", marginTop: 2 }} />{s}</li>
@@ -80,7 +84,8 @@ export function BriefPanel({ challenge, index, total, playground }: { challenge:
 }
 
 export function TestsPanel({ command, result, running, onRun }: { command: string | null; result: TestResult | null; running: boolean; onRun: () => void }) {
-  if (!command) return <Empty icon={<Flask size={18} />} title="No visible tests">This challenge is graded by hidden checks after you submit.</Empty>;
+  const { t } = useI18n();
+  if (!command) return <Empty icon={<Flask size={18} />} title={t("workspace.noVisibleTests")}>{t("workspace.hiddenChecksNote")}</Empty>;
   const all = result && result.total > 0 && result.passed === result.total;
   const pct = result && result.total ? (result.passed / result.total) * 100 : 0;
   return (
@@ -89,7 +94,7 @@ export function TestsPanel({ command, result, running, onRun }: { command: strin
         <span className={ui.prompt}>$</span>
         <span className={ui.ellipsis} style={{ flex: 1 }} title={command}>{command}</span>
         <button type="button" className={`${ui.btn} ${ui.btnSm}`} onClick={onRun} disabled={running} data-el="run-tests">
-          <Play size={12} weight="fill" /> {running ? "Running" : "Run"} <Keys keys={["mod", "enter"]} />
+          <Play size={12} weight="fill" /> {t(running ? "workspace.running" : "workspace.run")} <Keys keys={["mod", "enter"]} />
         </button>
       </div>
       {result && !running && (
@@ -97,7 +102,7 @@ export function TestsPanel({ command, result, running, onRun }: { command: strin
           <span style={{ color: all ? "var(--w-ok)" : "var(--w-warn)", display: "flex" }}>{all ? <CheckCircle size={22} weight="fill" /> : <XCircle size={22} weight="fill" />}</span>
           <span className={ui.testScore}>{result.passed}<span className={ui.faint} style={{ fontSize: 16 }}>/{result.total}</span></span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className={ui.faint} style={{ fontSize: 11.5, marginBottom: 6 }}>{all ? "All visible tests pass" : `${result.total - result.passed} failing`}</div>
+            <div className={ui.faint} style={{ fontSize: 11.5, marginBottom: 6 }}>{all ? t("workspace.allPass") : t("workspace.failing", { n: result.total - result.passed })}</div>
             <div className={ui.testBar}>
               <i style={{ width: `${pct}%`, background: "var(--w-ok)" }} />
               <i style={{ width: `${100 - pct}%`, background: result.total ? "var(--w-err)" : "transparent", opacity: 0.6 }} />
@@ -108,13 +113,13 @@ export function TestsPanel({ command, result, running, onRun }: { command: strin
       <div className={ui.scroll}>
         {running ? (
           <div>
-            <TaskRow status="running" label={`Running ${command}`} />
+            <TaskRow status="running" label={t("workspace.runningCommand", { command })} />
             <div style={{ padding: "16px" }}><ShimmerLines lines={4} /></div>
           </div>
         ) : result ? (
           <TestResultView output={result.output} />
         ) : (
-          <Empty icon={<Flask size={18} />} title="Run the visible tests">They run in the same sandbox as the agent. Hidden tests run when you submit.</Empty>
+          <Empty icon={<Flask size={18} />} title={t("workspace.runVisibleTests")}>{t("workspace.runVisibleTestsText")}</Empty>
         )}
       </div>
     </div>
@@ -122,9 +127,10 @@ export function TestsPanel({ command, result, running, onRun }: { command: strin
 }
 
 function TestResultView({ output }: { output: string }) {
+  const { t } = useI18n();
   const lines = parseTestLines(output);
   const ordered = [...lines.filter((l) => !l.passed), ...lines.filter((l) => l.passed)];
-  if (!lines.length) return <pre className={ui.output}>{stripAnsi(output) || "(no output)"}</pre>;
+  if (!lines.length) return <pre className={ui.output}>{stripAnsi(output) || t("workspace.noOutput")}</pre>;
   return (
     <div data-el="test-rows">
       {ordered.map((l, i) => (
@@ -133,7 +139,7 @@ function TestResultView({ output }: { output: string }) {
         </motion.div>
       ))}
       <details className={ui.rawOutput}>
-        <summary>Raw output</summary>
+        <summary>{t("workspace.rawOutput")}</summary>
         <pre className={ui.output}>{stripAnsi(output)}</pre>
       </details>
     </div>
@@ -180,9 +186,10 @@ function Churn({ added, removed }: { added: number; removed: number }) {
 }
 
 export function ChangesPanel({ changes, onOpen, who }: { changes: FileChange[] | null; onOpen?: (path: string) => void; who?: string }) {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<string | null>(null);
   if (!changes) return <div className={ui.empty}><span className={ui.spinner} /></div>;
-  if (!changes.length) return <Empty icon={<GitDiff size={18} />} title="No changes yet">{`Every file ${who ?? "you"} or the agent changes shows up here as a diff against the original challenge.`}</Empty>;
+  if (!changes.length) return <Empty icon={<GitDiff size={18} />} title={t("workspace.noChanges")}>{who ? t("workspace.changesEmptyWho", { who }) : t("workspace.changesEmptyYou")}</Empty>;
   const current = changes.find((c) => c.path === selected) ?? changes[0];
   let budget = MAX_RENDERED_LINES;
   return (
@@ -193,7 +200,7 @@ export function ChangesPanel({ changes, onOpen, who }: { changes: FileChange[] |
             <motion.button layout key={c.path} type="button" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, height: 0 }} transition={spring} className={`${ui.changeRow} ${c.path === current.path ? ui.changeRowActive : ""}`} onClick={() => setSelected(c.path)} title={c.path} data-el="changed-file">
               <span className={ui.changeStatus} style={{ color: statusMark[c.status].color }}>{statusMark[c.status].letter}</span>
               <span className={ui.ellipsis} style={{ flex: 1 }}>{c.path}</span>
-              {c.skipped ? <span className={ui.faint}>{c.skipped}</span> : (
+              {c.skipped ? <span className={ui.faint}>{t(c.skipped === "binary" ? "workspace.skippedBinary" : "workspace.skippedLarge")}</span> : (
                 <span key={`${c.added}:${c.removed}`} className={ui.flash} style={{ flex: "none", display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 6, padding: "0 4px" }}>
                   {c.added > 0 && <span style={{ color: "var(--w-ok)" }}>+{c.added}</span>}
                   {c.removed > 0 && <span style={{ color: "var(--w-err)" }}>−{c.removed}</span>}
@@ -207,12 +214,12 @@ export function ChangesPanel({ changes, onOpen, who }: { changes: FileChange[] |
       <div className={ui.fileBar} style={{ paddingLeft: 16 }}>
         <span className={ui.crumbs} title={current.path}><bdi>{current.path}</bdi></span>
         {onOpen && current.status !== "deleted" && !current.skipped && (
-          <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} style={{ marginLeft: "auto" }} onClick={() => onOpen(current.path)}>Open in editor</button>
+          <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} style={{ marginLeft: "auto" }} onClick={() => onOpen(current.path)}>{t("workspace.openInEditor")}</button>
         )}
       </div>
       <div className={ui.scroll} style={{ overflowX: "auto", background: "var(--w-bg)" }} data-el="diff">
         {current.skipped ? (
-          <Empty icon={<GitDiff size={18} />} title={current.skipped === "binary" ? "Binary file" : "File too large to diff"} />
+          <Empty icon={<GitDiff size={18} />} title={t(current.skipped === "binary" ? "workspace.binaryFile" : "workspace.fileTooLarge")} />
         ) : (
           <div className={ui.diff}>
             {current.hunks.map((h, hi) => (
@@ -230,7 +237,7 @@ export function ChangesPanel({ changes, onOpen, who }: { changes: FileChange[] |
                 })}
               </div>
             ))}
-            {budget < 0 && <div className={ui.hunkGap}>Diff truncated. Open the file to see the rest.</div>}
+            {budget < 0 && <div className={ui.hunkGap}>{t("workspace.diffTruncated")}</div>}
           </div>
         )}
       </div>

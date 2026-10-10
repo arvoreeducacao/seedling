@@ -15,6 +15,7 @@ import { filterInput, trackFocusMode } from "@/server/terminal-input";
 import { ensureSandbox } from "@/lib/revive";
 import { env } from "@/lib/env";
 import { upgradeAllowed } from "@/server/origin";
+import { i18nFor, pickLocale, type Locale } from "@/lib/i18n";
 
 type Viewer = { kind: "candidate" } | { kind: "admin"; email: string };
 type Target = { sessionId: string; agent: string; key: string };
@@ -28,17 +29,18 @@ function cookieOf(req: IncomingMessage, name: string) {
   return undefined;
 }
 
-async function identify(req: IncomingMessage, sessionId: string, agent: string): Promise<Viewer | null> {
+async function identify(req: IncomingMessage, sessionId: string, agent: string): Promise<{ viewer: Viewer; locale: Locale } | null> {
   await ready();
   const session = await db.query.sessions.findFirst({ where: eq(schema.sessions.id, sessionId) });
   if (!session) return null;
+  const locale = session.locale;
   if (agent !== MAIN_AGENT && !(session.status === "running" && (await isOpenAgent(session, agent)))) {
     const admin = await adminFromRequest(req);
-    return admin ? { kind: "admin", email: admin.email } : null;
+    return admin ? { viewer: { kind: "admin", email: admin.email }, locale } : null;
   }
-  if (candidateOwns(session, cookieOf(req, CANDIDATE_COOKIE)) && session.status === "running") return { kind: "candidate" };
+  if (candidateOwns(session, cookieOf(req, CANDIDATE_COOKIE)) && session.status === "running") return { viewer: { kind: "candidate" }, locale };
   const admin = await adminFromRequest(req);
-  if (admin) return { kind: "admin", email: admin.email };
+  if (admin) return { viewer: { kind: "admin", email: admin.email }, locale };
   return null;
 }
 
@@ -101,7 +103,7 @@ type ShellEntry = { write(data: string): void; resize(c: number, r: number): voi
 
 const shells = new Map<string, ShellEntry>();
 
-async function shellFor({ sessionId, agent, key }: Target): Promise<{ entry: ShellEntry; fresh: "revived" | "shell" | null } | null> {
+async function shellFor({ sessionId, agent, key }: Target, locale: Locale): Promise<{ entry: ShellEntry; fresh: "revived" | "shell" | null } | null> {
   const existing = shells.get(key);
   if (existing) return { entry: existing, fresh: null };
   const found = await sandbox().find(sessionId);
@@ -135,7 +137,7 @@ async function shellFor({ sessionId, agent, key }: Target): Promise<{ entry: She
     bus.emit(`terminal:${key}`, masked);
   });
   shell.stream.on("end", () => {
-    const note = "\r\n[session closed]\r\n";
+    const note = `\r\n${i18nFor(locale).t("server.terminalClosed")}\r\n`;
     mirrorFor(key).write(note);
     bus.emit(`terminal:${key}`, note);
     entry.close();
@@ -166,8 +168,8 @@ export function attachTerminal(server: import("node:http").Server, ignore: (req:
     const sessionId = url.searchParams.get("session") ?? "";
     const agentParam = url.searchParams.get("agent") ?? MAIN_AGENT;
     const agent = validAgentKey(agentParam) ? agentParam : MAIN_AGENT;
-    const viewer = await identify(req, sessionId, agent).catch(() => null);
-    if (!viewer) {
+    const seen = await identify(req, sessionId, agent).catch(() => null);
+    if (!seen) {
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       socket.destroy();
       return;
@@ -176,7 +178,8 @@ export function attachTerminal(server: import("node:http").Server, ignore: (req:
     const rows = Number(url.searchParams.get("rows"));
     const initial = cols > 0 && rows > 0 && cols <= 1000 && rows <= 500 ? ([cols, rows] as [number, number]) : null;
     const target = { sessionId, agent, key: terminalKey(sessionId, agent) };
-    wss.handleUpgrade(req, socket, head, (ws) => void handle(ws, target, viewer, initial).catch(() => ws.close()));
+    const reader = pickLocale(req.headers["accept-language"]);
+    wss.handleUpgrade(req, socket, head, (ws) => void handle(ws, target, seen.viewer, initial, { reader, session: seen.locale }).catch(() => ws.close()));
   });
 }
 
@@ -189,7 +192,7 @@ function setSize(key: string, cols: number, rows: number) {
   bus.emit(`terminal-size:${key}`, size);
 }
 
-async function handle(ws: WebSocket, target: Target, viewer: Viewer, initial: [number, number] | null) {
+async function handle(ws: WebSocket, target: Target, viewer: Viewer, initial: [number, number] | null, locales: { reader: Locale; session: Locale }) {
   const { key } = target;
   const send = (data: string) => ws.readyState === WebSocket.OPEN && ws.send(data);
   let closed = false;
@@ -233,7 +236,7 @@ async function handle(ws: WebSocket, target: Target, viewer: Viewer, initial: [n
     ws.on("close", () => bus.off(`terminal-size:${key}`, onSize));
     return;
   }
-  const opened = await shellFor(target).catch((error) => {
+  const opened = await shellFor(target, locales.session).catch((error) => {
     console.error("[seedling] terminal", key, error);
     return null;
   });
@@ -241,7 +244,8 @@ async function handle(ws: WebSocket, target: Target, viewer: Viewer, initial: [n
   shell = opened?.entry ?? null;
   if (opened?.fresh) send(`\u0000fresh:${opened.fresh}`);
   if (!shell) {
-    send("\r\n\x1b[33m[the sandbox is not running for this session]\x1b[0m\r\n");
+    send(`\r\n\x1b[33m${i18nFor(locales.reader).t("server.terminalNoSandbox")}\x1b[0m\r\n`);
+    send("\u0000no-sandbox");
     return;
   }
   if (pendingSize) shell.resize(pendingSize[0], pendingSize[1]);

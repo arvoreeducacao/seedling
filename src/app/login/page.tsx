@@ -8,23 +8,30 @@ import { LoginForm } from "./login-form";
 import { requestAccess } from "./actions";
 import { findInvite } from "@/lib/admin-invites";
 import { mailConfigured } from "@/lib/mail";
+import { getI18n } from "@/lib/i18n/server";
+import type { T } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Sign in" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t("server.loginTitle") };
+}
 
-function signInError(code: string | string[]) {
+function signInError(t: T, code: string | string[]) {
   const normalized = (Array.isArray(code) ? code.join(" ") : String(code)).toLowerCase();
-  if (normalized.includes("signup") || normalized.includes("invite") || normalized.includes("forbidden")) return "This email isn't invited yet. Ask an admin for an invite, then sign in with the same email.";
-  if (normalized.includes("email_not_found") || normalized.includes("unable_to_get_user_info")) return "Your provider didn't share a verified email. Make your primary email public or verified and try again.";
-  if (normalized.includes("not_linked")) return "An account with this email already exists. Sign in with your password once, then the provider will work.";
-  return "Sign-in didn't complete. Try again.";
+  if (normalized.includes("signup") || normalized.includes("invite") || normalized.includes("forbidden")) return t("server.loginNotInvited");
+  if (normalized.includes("email_not_found") || normalized.includes("unable_to_get_user_info")) return t("server.loginNoEmail");
+  if (normalized.includes("not_linked")) return t("server.loginNotLinked");
+  return t("server.loginFailed");
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ requested?: string; error?: string | string[]; invite?: string }> }) {
+  const { t } = await getI18n();
   const user = await currentUser();
   if (user && (await isAdminEmail(user.email))) redirect("/");
   const params = await searchParams;
   const providers = enabledProviders();
   const invite = typeof params.invite === "string" ? await findInvite(params.invite) : null;
+  const [beforeEmail, afterEmail] = t("server.loginNotOnList").split("{email}");
   return (
     <main className="stage" style={{ overflowX: "clip" }}>
       <Starfield stars={150} aurora shooting />
@@ -34,9 +41,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
         {user ? (
           <>
-            <h1 className="display stage-title" style={{ marginTop: 40 }}>Almost in</h1>
+            <h1 className="display stage-title" style={{ marginTop: 40 }}>{t("server.loginAlmostIn")}</h1>
             <p style={{ marginTop: 20, textAlign: "center", fontSize: 16, lineHeight: 1.6, color: "var(--text-2)", maxWidth: 440 }}>
-              You&apos;re signed in as <b>{user.email}</b>, which isn&apos;t on the interviewer list yet.
+              {beforeEmail}<b>{user.email}</b>{afterEmail}
             </p>
             <Stage style={{ marginTop: 96, width: "100%", maxWidth: 400 }}>
               <Stage.Actor at="top-right" out={0.78} inset={32}><Sprout mood="worried" size={112} /></Stage.Actor>
@@ -44,17 +51,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                 <div style={{ display: "flex", gap: 12 }}>
                   <span style={{ width: 36, height: 36, borderRadius: 12, background: "var(--warn-soft)", color: "var(--warn)", display: "grid", placeItems: "center", flex: "none" }}><IconLock size={16} /></span>
                   <p className="muted" style={{ lineHeight: 1.6 }}>
-                    {params.requested ? "Request sent. An admin will see it under Settings and can add you." : "Ask an admin to add you, or send a request they'll see in Settings."}
+                    {params.requested ? t("server.loginRequestSent") : t("server.loginAskAdmin")}
                   </p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
                   {!params.requested && (
                     <form action={requestAccess}>
-                      <button className="btn btn-primary btn-lg btn-block">Request access</button>
+                      <button className="btn btn-primary btn-lg btn-block">{t("server.loginRequestAccess")}</button>
                     </form>
                   )}
                   <form action="/auth/logout" method="post">
-                    <button className="btn btn-lg btn-block">Use a different account</button>
+                    <button className="btn btn-lg btn-block">{t("server.loginUseAnother")}</button>
                   </form>
                 </div>
               </div>
@@ -62,21 +69,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </>
         ) : (
           <>
-            <h1 className="display stage-title" style={{ marginTop: 28 }}>Hire people who build with AI</h1>
-            <p style={{ marginTop: 20, textAlign: "center", fontSize: 16, lineHeight: 1.6, color: "var(--text-2)", maxWidth: 560 }}>Live coding interviews with Claude in the room. Sign in to run them.</p>
+            <h1 className="display stage-title" style={{ marginTop: 28 }}>{t("server.loginHeadline")}</h1>
+            <p style={{ marginTop: 20, textAlign: "center", fontSize: 16, lineHeight: 1.6, color: "var(--text-2)", maxWidth: 560 }}>{t("server.loginSub")}</p>
             <Stage style={{ marginTop: 96, width: "100%", maxWidth: 400 }}>
               <Stage.Actor at="top-right" out={0.78} inset={32}><Sprout mood="waving" size={120} /></Stage.Actor>
               <Stage.Actor at="left" out={0.55} inset={60} behind delay={0.3}><CodeCrystal glyph="braces" hue="violet" tilt={-10} size={84} /></Stage.Actor>
               <div className="stage-panel">
-                {params.error && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{signInError(params.error)}</div>}
-                {params.invite && !invite && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>This invite link is no longer valid. Ask an admin for a new one.</div>}
+                {params.error && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{signInError(t, params.error)}</div>}
+                {params.invite && !invite && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{t("server.loginInviteInvalid")}</div>}
                 <LoginForm google={providers.google} github={providers.github} invite={invite ? { token: params.invite!, email: invite.email } : null} verifyByEmail={mailConfigured()} />
               </div>
             </Stage>
           </>
         )}
         <p style={{ marginTop: 28, fontSize: 13, textAlign: "center", lineHeight: 1.6, color: "var(--text-3)", maxWidth: 340 }}>
-          Taking an interview? Open the link from your invite email. No account needed.
+          {t("server.loginCandidateHint")}
         </p>
       </div>
     </main>

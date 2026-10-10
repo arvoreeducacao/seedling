@@ -14,7 +14,7 @@ export function signer() {
 
 export async function previewInfo(session: Session) {
   if (!env.previewOrigin) {
-    return { enabled: false as const, reason: "Set SEEDLING_PREVIEW_ORIGIN to open pages from the sandbox." };
+    return { enabled: false as const, reason: "workspace.previewOriginMissing" };
   }
   const challenge = await activeChallenge(session);
   const containerId = await sandbox().find(session.id).catch(() => null);

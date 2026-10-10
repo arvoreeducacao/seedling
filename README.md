@@ -283,6 +283,16 @@ The prep kit is what candidates see before they press Start. Configure it in **S
 
 Kits are plain JSON, so teams can share them. `examples/prep` has the format and the kit Árvore uses for its engineering interviews, as an example to adapt.
 
+## Languages
+
+Seedling speaks English and Portuguese. Every screen — the team's panel and the candidate's session — picks its language from the reader's browser (`Accept-Language`), with English as the default and as the fallback for any language we do not carry. Nobody sets a preference anywhere.
+
+The invite email is the exception: it is sent before a browser exists, so whoever invites picks the language on the invite form. That choice is stored on the session and also decides the language of anything written outside a browser, such as the gateway messages Claude Code sees inside the sandbox.
+
+Route names stay in English (`/challenges`, `/sessions`, `/settings`) in both languages: they are addresses, not copy, and the candidate never sees them.
+
+Adding a language, or new text in an existing one, happens in `src/lib/i18n/`. Each area of the product owns a pair of files — `en/<area>.ts` and `pt/<area>.ts` — and the Portuguese one is typed against the English one, so a missing key fails `pnpm typecheck`. `pnpm test` checks the rest: both sides carry the same keys, the same `{placeholders}`, the same plural forms, and no key sits unused.
+
 ## More
 
 - **Several agents at once.** New agent opens another Claude Code in its own git worktree, mounted at `/agents/<name>`. The Changes panel shows each agent's diff and merges it into the workspace. The report adds a timeline of agents working in parallel.

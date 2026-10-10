@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { FileText, Lightning, Lock, Plug, Trash, UploadSimple, Warning, TreeStructure } from "@phosphor-icons/react";
 import type { SetupView } from "@/lib/setup/store";
 import ui from "@/components/workspace/ui.module.css";
+import { useI18n } from "@/components/i18n";
+import { hasKey, type T } from "@/lib/i18n";
 import css from "./setup.module.css";
 
 type Section = "skills" | "claudeMd" | "mcp";
@@ -33,6 +35,10 @@ function kb(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function worded(t: T, message: string) {
+  return hasKey(message) ? t(message) : message;
+}
+
 function ErrorLine({ text }: { text?: string }) {
   return (
     <AnimatePresence initial={false}>
@@ -45,9 +51,10 @@ function ErrorLine({ text }: { text?: string }) {
   );
 }
 
-function Card({ icon, title, sub, children, off }: { icon: React.ReactNode; title: string; sub: string; children: React.ReactNode; off?: boolean }) {
+function Card({ el, icon, title, sub, children, off }: { el: string; icon: React.ReactNode; title: string; sub: string; children: React.ReactNode; off?: boolean }) {
+  const { t } = useI18n();
   return (
-    <section className={css.card} data-el={`setup-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+    <section className={css.card} data-el={el}>
       <div className={css.cardHead}>
         <span className={css.cardIcon}>{icon}</span>
         <div style={{ minWidth: 0 }}>
@@ -55,12 +62,14 @@ function Card({ icon, title, sub, children, off }: { icon: React.ReactNode; titl
           <div className={css.cardSub}>{sub}</div>
         </div>
       </div>
-      {off ? <div className={css.note}><Lock size={14} /> Turned off for this interview.</div> : children}
+      {off ? <div className={css.note}><Lock size={14} /> {t("setup.turnedOff")}</div> : children}
     </section>
   );
 }
 
 function Item({ name, meta, extra, onRemove, disabled }: { name: string; meta: React.ReactNode; extra?: React.ReactNode; onRemove?: () => void; disabled?: boolean }) {
+  const { t } = useI18n();
+  const remove = t("setup.removeItem", { name });
   return (
     <motion.li layout="position" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginTop: -6 }} transition={{ duration: 0.16 }} className={css.item}>
       <div className={css.itemMain}>
@@ -69,7 +78,7 @@ function Item({ name, meta, extra, onRemove, disabled }: { name: string; meta: R
         {extra}
       </div>
       {onRemove && (
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={onRemove} disabled={disabled} aria-label={`Remove ${name}`} title={`Remove ${name}`}>
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.iconBtn}`} onClick={onRemove} disabled={disabled} aria-label={remove} title={remove}>
           <Trash size={14} />
         </button>
       )}
@@ -78,6 +87,7 @@ function Item({ name, meta, extra, onRemove, disabled }: { name: string; meta: R
 }
 
 function Preview({ setup }: { setup: SetupView }) {
+  const { t } = useI18n();
   const lines: React.ReactNode[] = [];
   const policy = setup.policy;
   if (policy.skills && setup.skills.length) {
@@ -94,7 +104,7 @@ function Preview({ setup }: { setup: SetupView }) {
   if (policy.claudeMd && setup.claudeMd) lines.push(<span key="md">~/.claude/CLAUDE.md<span className={css.treeMuted}>{`  ${kb(setup.claudeMd.size)}`}</span></span>);
   if (policy.mcpServers && setup.mcpServers.length) {
     lines.push(<span key="mc">~/.claude.json <span className={css.treeMuted}>mcpServers</span></span>);
-    lines.push(<span key="pw" className={css.treeMuted}>├─ playwright  (sandbox browser, kept)</span>);
+    lines.push(<span key="pw" className={css.treeMuted}>{`├─ playwright  ${t("setup.preview.playwright")}`}</span>);
     setup.mcpServers.forEach((s, i) => lines.push(<span key={`m-${s.name}`}>{`${i === setup.mcpServers.length - 1 ? "└─" : "├─"} ${s.name}  `}<span className={css.treeMuted}>{s.type}</span></span>));
   }
   const filePct = Math.min(100, (setup.totals.files / setup.limits.files) * 100);
@@ -104,29 +114,30 @@ function Preview({ setup }: { setup: SetupView }) {
       <div className={css.cardHead}>
         <span className={css.cardIcon}><TreeStructure size={15} /></span>
         <div>
-          <div className={css.cardTitle}>What gets installed</div>
-          <div className={css.cardSub}>Copied into your sandbox when you press Start</div>
+          <div className={css.cardTitle}>{t("setup.preview.title")}</div>
+          <div className={css.cardSub}>{t("setup.preview.sub")}</div>
         </div>
       </div>
       {lines.length ? (
         <pre className={css.tree}>{lines.map((line, i) => <span key={i}>{line}{"\n"}</span>)}</pre>
       ) : (
-        <div className={css.empty}>Nothing yet. Your sandbox starts with a clean Claude Code, which is fine too.</div>
+        <div className={css.empty}>{t("setup.preview.empty")}</div>
       )}
       <div className={css.stat}>
-        <div className={css.statHead}><span>Files</span><span className={ui.mono}>{setup.totals.files} / {setup.limits.files}</span></div>
+        <div className={css.statHead}><span>{t("setup.preview.files")}</span><span className={ui.mono}>{setup.totals.files} / {setup.limits.files}</span></div>
         <div className={css.meter}><i style={{ width: `${filePct}%` }} /></div>
       </div>
       <div className={css.stat}>
-        <div className={css.statHead}><span>Size</span><span className={ui.mono}>{kb(setup.totals.bytes)} / {kb(setup.limits.totalBytes)}</span></div>
+        <div className={css.statHead}><span>{t("setup.preview.size")}</span><span className={ui.mono}>{kb(setup.totals.bytes)} / {kb(setup.limits.totalBytes)}</span></div>
         <div className={css.meter}><i style={{ width: `${bytePct}%` }} /></div>
       </div>
-      <div className={css.cardSub} style={{ lineHeight: 1.55 }}>Nothing here runs on our servers. It only lands inside your own sandbox. Header values stay hidden after you save them.</div>
+      <div className={css.cardSub} style={{ lineHeight: 1.55 }}>{t("setup.preview.note")}</div>
     </section>
   );
 }
 
 export function BringYourSetup({ token, onItems }: { token: string; onItems?: (count: number) => void }) {
+  const { t } = useI18n();
   const [setup, setSetup] = useState<SetupView | null>(null);
   const [editable, setEditable] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -160,17 +171,17 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
         const json = await res.json().catch(() => null);
         if (!alive) return;
         if (!res.ok || !json?.setup) {
-          setLoadError(json?.error ?? "Couldn't load your setup.");
+          setLoadError(typeof json?.error === "string" && json.error ? worded(t, json.error) : t("setup.loadFailed"));
           return;
         }
         apply(json);
         setClaudeMd(json.setup.claudeMd?.content ?? "");
       })
-      .catch(() => alive && setLoadError("Couldn't load your setup."));
+      .catch(() => alive && setLoadError(t("setup.loadFailed")));
     return () => {
       alive = false;
     };
-  }, [base, apply]);
+  }, [base, apply, t]);
 
   async function send(section: Section, url: string, init: RequestInit) {
     setBusy(section);
@@ -179,7 +190,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
     const json = await res?.json().catch(() => null);
     setBusy(null);
     if (!res?.ok || !json?.setup) {
-      setErrors((e) => ({ ...e, [section]: json?.error ?? "Something went wrong. Try again." }));
+      setErrors((e) => ({ ...e, [section]: typeof json?.error === "string" && json.error ? worded(t, json.error) : t("prep.somethingWentWrong") }));
       return false;
     }
     apply(json);
@@ -188,7 +199,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
 
   async function uploadZip(file: File) {
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setErrors((e) => ({ ...e, skills: "Choose a .zip file. To add a single skill, paste its SKILL.md instead." }));
+      setErrors((e) => ({ ...e, skills: t("setup.skills.wrongFile") }));
       return;
     }
     const form = new FormData();
@@ -221,10 +232,10 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
 
   return (
     <div className={`${ui.root} ${css.wrap}`} style={{ background: "transparent" }} data-el="bring-your-setup">
-      {locked && <div className={css.note}><Lock size={14} /> Your setup is locked once the interview starts. This is what was installed.</div>}
+      {locked && <div className={css.note}><Lock size={14} /> {t("setup.locked")}</div>}
       <div className={css.grid}>
         <div className={css.column}>
-          <Card icon={<Lightning size={15} weight="fill" />} title="Skills" sub="Folders with a SKILL.md, the way they sit in ~/.claude/skills" off={!policy.skills}>
+          <Card el="setup-skills" icon={<Lightning size={15} weight="fill" />} title={t("setup.skills.title")} sub={t("setup.skills.sub")} off={!policy.skills}>
             {!locked && (
               <>
                 <button
@@ -246,21 +257,21 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
                   data-el="skill-drop"
                 >
                   {busy === "skills" ? <span className={ui.spinner} style={{ width: 18, height: 18 }} /> : <UploadSimple size={20} />}
-                  <span className={css.dropTitle}>{busy === "skills" ? "Checking your zip…" : "Drop a .zip of your skills here"}</span>
-                  <span className={css.cardSub}>or click to choose. Text files only, up to {setup.limits.files} files and {kb(setup.limits.totalBytes)}.</span>
+                  <span className={css.dropTitle}>{busy === "skills" ? t("setup.skills.checking") : t("setup.skills.drop")}</span>
+                  <span className={css.cardSub}>{t("setup.skills.dropHint", { files: setup.limits.files, size: kb(setup.limits.totalBytes) })}</span>
                 </button>
                 <input ref={fileInput} type="file" accept=".zip,application/zip" hidden onChange={(e) => {
                   const file = e.currentTarget.files?.[0];
                   e.currentTarget.value = "";
                   if (file) void uploadZip(file);
                 }} />
-                <button type="button" className={css.toggle} onClick={() => setPasteOpen((v) => !v)} aria-expanded={pasteOpen}>{pasteOpen ? "Hide the paste box" : "Or paste a single SKILL.md"}</button>
+                <button type="button" className={css.toggle} onClick={() => setPasteOpen((v) => !v)} aria-expanded={pasteOpen}>{pasteOpen ? t("setup.skills.hidePaste") : t("setup.skills.showPaste")}</button>
                 <AnimatePresence initial={false}>
                   {pasteOpen && (
                     <motion.div key="paste" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", display: "flex", flexDirection: "column", gap: 8 }}>
-                      <input className={ui.input} placeholder="Name, like review-helper (optional if the frontmatter has one)" value={skillName} onChange={(e) => setSkillName(e.target.value)} aria-label="Skill name" />
-                      <textarea className={css.textarea} placeholder={SKILL_EXAMPLE} value={skillBody} onChange={(e) => setSkillBody(e.target.value)} aria-label="SKILL.md content" />
-                      <div className={css.row}><span className={css.spacer} /><button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void pasteSkill()} disabled={busy === "skills" || !skillBody.trim()}>Add skill</button></div>
+                      <input className={ui.input} placeholder={t("setup.skills.namePlaceholder")} value={skillName} onChange={(e) => setSkillName(e.target.value)} aria-label={t("setup.skills.nameLabel")} />
+                      <textarea className={css.textarea} placeholder={SKILL_EXAMPLE} value={skillBody} onChange={(e) => setSkillBody(e.target.value)} aria-label={t("setup.skills.bodyLabel")} />
+                      <div className={css.row}><span className={css.spacer} /><button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void pasteSkill()} disabled={busy === "skills" || !skillBody.trim()}>{t("setup.skills.add")}</button></div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -271,42 +282,42 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
               <ul className={css.list}>
                 <AnimatePresence initial={false}>
                   {setup.skills.map((skill) => (
-                    <Item key={skill.name} name={skill.name} meta={`${skill.description ? `${skill.description} · ` : ""}${skill.files.length} file${skill.files.length > 1 ? "s" : ""}`} disabled={busy !== null} onRemove={locked ? undefined : () => void send("skills", `${base}/skills/${encodeURIComponent(skill.name)}`, { method: "DELETE" })} />
+                    <Item key={skill.name} name={skill.name} meta={`${skill.description ? `${skill.description} · ` : ""}${t("setup.fileCount", { n: skill.files.length })}`} disabled={busy !== null} onRemove={locked ? undefined : () => void send("skills", `${base}/skills/${encodeURIComponent(skill.name)}`, { method: "DELETE" })} />
                   ))}
                 </AnimatePresence>
               </ul>
-            ) : locked ? <div className={css.empty}>No skills.</div> : null}
+            ) : locked ? <div className={css.empty}>{t("setup.skills.none")}</div> : null}
           </Card>
 
-          <Card icon={<FileText size={15} />} title="CLAUDE.md" sub="Your personal instructions, installed as ~/.claude/CLAUDE.md" off={!policy.claudeMd}>
-            <textarea className={css.textarea} style={{ minHeight: 140 }} placeholder={"# How I work\n- Plan before editing\n- Run the tests after every change"} value={claudeMd} disabled={locked} onChange={(e) => {
+          <Card el="setup-claude-md" icon={<FileText size={15} />} title="CLAUDE.md" sub={t("setup.claudeMd.sub")} off={!policy.claudeMd}>
+            <textarea className={css.textarea} style={{ minHeight: 140 }} placeholder={t("setup.claudeMd.placeholder")} value={claudeMd} disabled={locked} onChange={(e) => {
               setClaudeMd(e.target.value);
               setClaudeMdDirty(true);
-            }} aria-label="CLAUDE.md content" data-el="claude-md" />
+            }} aria-label={t("setup.claudeMd.label")} data-el="claude-md" />
             <ErrorLine text={errors.claudeMd} />
             {!locked && (
               <div className={css.row}>
-                <span className={css.cardSub}>{setup.claudeMd ? `Saved · ${kb(setup.claudeMd.size)}` : "Not saved yet"}</span>
+                <span className={css.cardSub}>{setup.claudeMd ? t("setup.claudeMd.saved", { size: kb(setup.claudeMd.size) }) : t("setup.claudeMd.unsaved")}</span>
                 <span className={css.spacer} />
                 {setup.claudeMd && <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm}`} onClick={async () => {
                   if (await send("claudeMd", `${base}/claude-md`, { method: "DELETE" })) {
                     setClaudeMd("");
                     setClaudeMdDirty(false);
                   }
-                }} disabled={busy !== null}>Remove</button>}
-                <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void saveClaudeMd()} disabled={busy !== null || !claudeMdDirty}>{busy === "claudeMd" ? "Saving…" : "Save"}</button>
+                }} disabled={busy !== null}>{t("common.remove")}</button>}
+                <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void saveClaudeMd()} disabled={busy !== null || !claudeMdDirty}>{busy === "claudeMd" ? t("common.saving") : t("common.save")}</button>
               </div>
             )}
           </Card>
 
-          <Card icon={<Plug size={15} />} title="MCP servers" sub="Remote servers only (http or sse). Local commands are not allowed." off={!policy.mcpServers}>
+          <Card el="setup-mcp-servers" icon={<Plug size={15} />} title={t("setup.mcp.title")} sub={t("setup.mcp.sub")} off={!policy.mcpServers}>
             {!locked && (
               <>
-                <textarea className={css.textarea} style={{ minHeight: 150 }} placeholder={MCP_EXAMPLE} value={mcpJson} onChange={(e) => setMcpJson(e.target.value)} aria-label="MCP servers JSON" data-el="mcp-json" spellCheck={false} />
+                <textarea className={css.textarea} style={{ minHeight: 150 }} placeholder={MCP_EXAMPLE} value={mcpJson} onChange={(e) => setMcpJson(e.target.value)} aria-label={t("setup.mcp.label")} data-el="mcp-json" spellCheck={false} />
                 <div className={css.row}>
-                  <span className={css.cardSub}>Paste the mcpServers block from your .mcp.json or ~/.claude.json.</span>
+                  <span className={css.cardSub}>{t("setup.mcp.hint")}</span>
                   <span className={css.spacer} />
-                  <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void addMcp()} disabled={busy !== null || !mcpJson.trim()}>{busy === "mcp" ? "Checking…" : "Add servers"}</button>
+                  <button type="button" className={`${ui.btn} ${ui.btnPrimary} ${ui.btnSm}`} onClick={() => void addMcp()} disabled={busy !== null || !mcpJson.trim()}>{busy === "mcp" ? t("setup.mcp.checking") : t("setup.mcp.add")}</button>
                 </div>
               </>
             )}
@@ -326,7 +337,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
                   ))}
                 </AnimatePresence>
               </ul>
-            ) : locked ? <div className={css.empty}>No MCP servers.</div> : null}
+            ) : locked ? <div className={css.empty}>{t("setup.mcp.none")}</div> : null}
           </Card>
         </div>
         <div className={`${css.column} ${css.sticky}`}>

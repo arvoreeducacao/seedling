@@ -4,6 +4,8 @@ import { createRef, useCallback, useEffect, useRef, useState } from "react";
 import { Plus, X } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import type { AgentState } from "@/components/brand";
+import { useI18n } from "@/components/i18n";
+import type { Key, T } from "@/lib/i18n";
 import { AgentSession } from "./agent-session";
 import type { TerminalHandle } from "./terminal";
 import ui from "./ui.module.css";
@@ -11,7 +13,11 @@ import { SetupIndicator } from "@/components/setup/setup-indicator";
 
 export type AgentTab = { key: string; name: string; createdAt: string | null; closedAt: string | null; mergedAt: string | null; status?: "working" | "waiting" | "idle" | "closed" };
 
-const activityLabel: Record<AgentState, string> = { working: "Working", done: "Waiting on you", idle: "Idle", error: "Stopped" };
+const activityKey: Record<AgentState, Key> = { working: "workspace.activityWorking", done: "workspace.activityDone", idle: "workspace.activityIdle", error: "workspace.activityError" };
+
+function agentName(t: T, agent: AgentTab) {
+  return agent.key === "main" ? t("workspace.agentMain") : agent.name;
+}
 
 function tabState(local: AgentState | undefined, server: AgentTab["status"]): AgentState {
   if (local === "error") return "error";
@@ -47,6 +53,7 @@ export function AgentDeck({
   onSelect: (key: string) => void;
   onChanged: () => Promise<void>;
 }) {
+  const { t } = useI18n();
   const handles = useRef(new Map<string, React.RefObject<TerminalHandle | null>>());
   const [activity, setActivity] = useState<Record<string, AgentState>>({});
   const [busy, setBusy] = useState(false);
@@ -74,7 +81,7 @@ export function AgentDeck({
     const json = await res?.json().catch(() => ({}));
     setBusy(false);
     if (!res?.ok) {
-      setError(json?.error ?? "Couldn't open a new agent. Try again.");
+      setError(json?.error ?? t("workspace.openAgentFailed"));
       return;
     }
     await onChanged();
@@ -95,7 +102,7 @@ export function AgentDeck({
     setBusy(false);
     setClosing(null);
     if (!res?.ok) {
-      setError("Couldn't close the agent. Try again.");
+      setError(t("workspace.closeAgentFailed"));
       return;
     }
     if (active === agent.key) onSelect("main");
@@ -122,8 +129,8 @@ export function AgentDeck({
   }, [open, onSelect]);
 
   return (
-    <section className={ui.agent} aria-label="Agents">
-      <div className={ui.agentTabs} role="tablist" aria-label="Agents" data-el="agent-tabs">
+    <section className={ui.agent} aria-label={t("workspace.agentsLabel")}>
+      <div className={ui.agentTabs} role="tablist" aria-label={t("workspace.agentsLabel")} data-el="agent-tabs">
         <AnimatePresence initial={false}>
           {open.map((agent, i) => {
             const state = tabState(activity[agent.key], agent.status);
@@ -136,7 +143,7 @@ export function AgentDeck({
                     defaultValue={agent.name}
                     autoFocus
                     maxLength={40}
-                    aria-label="Agent name"
+                    aria-label={t("workspace.agentNameLabel")}
                     onFocus={(e) => e.currentTarget.select()}
                     onBlur={(e) => void rename(agent.key, e.currentTarget.value)}
                     onKeyDown={(e) => {
@@ -152,22 +159,22 @@ export function AgentDeck({
                     className={ui.agentTabMain}
                     onClick={() => onSelect(agent.key)}
                     onDoubleClick={() => agent.key !== "main" && setRenaming(agent.key)}
-                    title={`${agent.name} · ${activityLabel[state]}${agent.key !== "main" ? " · double-click to rename" : ""}${i < 9 ? ` · ${navigator.platform.includes("Mac") ? "⌥⌘" : "Ctrl+Alt+"}${i + 1}` : ""}`}
+                    title={[t("workspace.agentTabTitle", { name: agentName(t, agent), activity: t(activityKey[state]) }), agent.key !== "main" ? t("workspace.renameHint") : "", i < 9 ? `${navigator.platform.includes("Mac") ? "⌥⌘" : "Ctrl+Alt+"}${i + 1}` : ""].filter(Boolean).join(" · ")}
                   >
                     <span className={ui.agentDot} data-state={state} aria-hidden="true" />
-                    <span className={ui.ellipsis}>{agent.name}</span>
-                    {multi && state === "done" && !selected && <span className={ui.agentWaiting}>waiting</span>}
+                    <span className={ui.ellipsis}>{agentName(t, agent)}</span>
+                    {multi && state === "done" && !selected && <span className={ui.agentWaiting}>{t("workspace.waiting")}</span>}
                   </button>
                 )}
                 {agent.key !== "main" && (
-                  <button type="button" className={ui.fileTabClose} onClick={() => setClosing(agent)} aria-label={`Close ${agent.name}`} title={`Close ${agent.name}`}><X size={11} /></button>
+                  <button type="button" className={ui.fileTabClose} onClick={() => setClosing(agent)} aria-label={t("workspace.closeNamed", { name: agent.name })} title={t("workspace.closeNamed", { name: agent.name })}><X size={11} /></button>
                 )}
               </motion.div>
             );
           })}
         </AnimatePresence>
-        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm} ${ui.agentNew}`} onClick={() => void create()} disabled={busy || open.length >= max || !aiActive} title={open.length >= max ? `Up to ${max} agents at once. Close one to open another.` : "Open another Claude Code in its own copy of the workspace"} data-el="new-agent">
-          <Plus size={12} weight="bold" /> New agent
+        <button type="button" className={`${ui.btn} ${ui.btnGhost} ${ui.btnSm} ${ui.agentNew}`} onClick={() => void create()} disabled={busy || open.length >= max || !aiActive} title={open.length >= max ? t("workspace.agentMaxHint", { max }) : t("workspace.newAgentHint")} data-el="new-agent">
+          <Plus size={12} weight="bold" /> {t("workspace.newAgent")}
         </button>
         <span className={ui.agentCount}>{open.length}/{max}</span>
         <SetupIndicator token={token} />
@@ -197,13 +204,13 @@ export function AgentDeck({
       {closing && (
         <div className={ui.overlay} onClick={() => !busy && setClosing(null)}>
           <div role="dialog" aria-modal="true" aria-labelledby="close-agent-title" className={ui.modal} onClick={(e) => e.stopPropagation()}>
-            <div id="close-agent-title" className={ui.modalTitle}>Close {closing.name}?</div>
+            <div id="close-agent-title" className={ui.modalTitle}>{t("workspace.closeAgentTitle", { name: closing.name })}</div>
             <p className={ui.muted} style={{ marginTop: 8, lineHeight: 1.6 }}>
-              Its terminal stops and its copy of the workspace goes away. {closing.mergedAt ? "Its work was merged into the workspace." : "Anything you haven't merged stays out of the workspace, so merge it from Changes first if you want to keep it."}
+              {t("workspace.closeAgentText")} {t(closing.mergedAt ? "workspace.closeAgentMerged" : "workspace.closeAgentUnmerged")}
             </p>
             <div className={ui.modalActions}>
-              <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => setClosing(null)} disabled={busy}>Keep it</button>
-              <button type="button" className={`${ui.btn} ${ui.btnDanger}`} onClick={() => void close(closing)} disabled={busy} autoFocus>{busy ? "Closing…" : "Close agent"}</button>
+              <button type="button" className={`${ui.btn} ${ui.btnGhost}`} onClick={() => setClosing(null)} disabled={busy}>{t("workspace.keepIt")}</button>
+              <button type="button" className={`${ui.btn} ${ui.btnDanger}`} onClick={() => void close(closing)} disabled={busy} autoFocus>{t(busy ? "workspace.closing" : "workspace.closeAgent")}</button>
             </div>
           </div>
         </div>

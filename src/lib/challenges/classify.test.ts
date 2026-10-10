@@ -72,6 +72,21 @@ describe("rubric and safety", () => {
       { path: ".env.example", content: "" },
     ]);
     expect(found).toHaveLength(2);
+    expect(found).toEqual([
+      { kind: "env", path: ".env" },
+      { kind: "anthropic", path: "a.js" },
+    ]);
+  });
+
+  it("names every secret kind it knows", () => {
+    const found = findSecrets([
+      { path: "k.txt", content: `sk-${"b".repeat(40)}` },
+      { path: "aws.txt", content: "AKIA0123456789ABCDEF" },
+      { path: "gh.txt", content: `ghp_${"c".repeat(40)}` },
+      { path: "id_rsa", content: "-----BEGIN RSA PRIVATE KEY-----" },
+      { path: "slack.txt", content: "xoxb-1234567890-abc" },
+    ]);
+    expect(found.map((f) => f.kind)).toEqual(["openai", "aws", "github", "privateKey", "slack"]);
   });
 
   it("does not flag a reference file that shares the candidate path", () => {
@@ -79,7 +94,7 @@ describe("rubric and safety", () => {
   });
 
   it("flags a statement that cites a private file", () => {
-    expect(statementLeaks("see\nsolution/example.js here", ["solution/example.js"])).toEqual(["line 2 mentions solution/example.js"]);
+    expect(statementLeaks("see\nsolution/example.js here", ["solution/example.js"])).toEqual([{ line: 2, path: "solution/example.js" }]);
   });
 });
 
