@@ -7,6 +7,7 @@ const map = {
   submitted: "var(--accent)",
   expired: "var(--warn)",
   cancelled: "var(--text-3)",
+  lapsed: "var(--text-3)",
 } as const;
 
 const decisions = { advance: "var(--ok)", talk: "var(--warn)", reject: "var(--text-3)" } as const;
@@ -18,7 +19,7 @@ export function StatusBadge({ i18n, status, decision, detail }: { i18n: I18n; st
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
       <span className={`dot ${status === "running" && !decision ? "dot-live" : ""}`} style={{ background: color }} />
-      <span style={{ whiteSpace: "nowrap", color: status === "paused" && !decision ? "var(--warn)" : status === "invited" || status === "cancelled" ? "var(--text-2)" : undefined }}>{label}</span>
+      <span style={{ whiteSpace: "nowrap", color: status === "paused" && !decision ? "var(--warn)" : status === "invited" || status === "cancelled" || status === "lapsed" ? "var(--text-2)" : undefined }}>{label}</span>
       {detail && <span className="faint num truncate" style={{ fontSize: 11.5 }}>{detail}</span>}
     </span>
   );

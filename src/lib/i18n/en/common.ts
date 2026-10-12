@@ -28,6 +28,7 @@ export const common = {
   "date.inDays": "in {n} day|in {n} days",
   "date.todayAt": "today, {time}",
   "date.expiresIn": "expires {when}",
+  "date.expiredOn": "expired {when}",
 
   "sessionStatus.invited": "Invited",
   "sessionStatus.running": "Live",
@@ -35,6 +36,7 @@ export const common = {
   "sessionStatus.submitted": "To review",
   "sessionStatus.expired": "Time ran out",
   "sessionStatus.cancelled": "Cancelled",
+  "sessionStatus.lapsed": "Invite expired",
 
   "decision.advance": "Advance",
   "decision.talk": "Follow up",

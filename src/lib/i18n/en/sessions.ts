@@ -28,6 +28,8 @@ export const sessions = {
   "sessions.waiting.notStarted": "{email} hasn't started yet.",
   "sessions.waiting.scheduledFor": "The interview is set for {when}.",
   "sessions.waiting.expires": "The invite expires {when}.",
+  "sessions.waiting.lapsed": "The invite expired on {when}, before {email} started.",
+  "sessions.waiting.lapsedNext": "To invite them again, create a new invite.",
   "sessions.waiting.cancelled": "This invite was cancelled.",
   "sessions.waiting.linkOnce": "The invite link is shown only once, when it is created. To send it again, create a new invite.",
   "sessions.waiting.cancelInvite": "Cancel invite",

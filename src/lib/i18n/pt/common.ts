@@ -31,6 +31,7 @@ export const common: Translation<typeof En> = {
   "date.inDays": "em {n} dia|em {n} dias",
   "date.todayAt": "hoje, {time}",
   "date.expiresIn": "vence {when}",
+  "date.expiredOn": "venceu {when}",
 
   "sessionStatus.invited": "Convidado",
   "sessionStatus.running": "Ao vivo",
@@ -38,6 +39,7 @@ export const common: Translation<typeof En> = {
   "sessionStatus.submitted": "Para avaliar",
   "sessionStatus.expired": "Tempo acabou",
   "sessionStatus.cancelled": "Cancelado",
+  "sessionStatus.lapsed": "Convite vencido",
 
   "decision.advance": "Avançar",
   "decision.talk": "Conversar",

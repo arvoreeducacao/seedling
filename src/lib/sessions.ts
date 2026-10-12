@@ -81,6 +81,10 @@ export function inviteExpiry(inviteDays: number, scheduledAt: Date | null, now =
   return new Date(Math.max(byDays, afterInterview));
 }
 
+export function inviteLapsed(session: Pick<Session, "status" | "inviteExpiresAt">, now = Date.now()) {
+  return session.status === "invited" && session.inviteExpiresAt.getTime() <= now;
+}
+
 export async function sessionByInvite(token: string) {
   await ready();
   return db.query.sessions.findFirst({ where: eq(schema.sessions.inviteTokenHash, hashToken(token)) });
