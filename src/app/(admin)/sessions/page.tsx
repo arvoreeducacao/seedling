@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/lib/db";
-import { listSessions, remainingMs } from "@/lib/sessions";
-import { clock, money, relativeDays, when } from "@/lib/format";
+import { inviteLapsed, listSessions, remainingMs } from "@/lib/sessions";
+import { clock, dayOnly, money, relativeDays, when } from "@/lib/format";
 import { getI18n } from "@/lib/i18n/server";
 import { StatusBadge } from "@/components/status-badge";
 import { Person } from "@/components/person";
@@ -65,6 +65,7 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
                 const href = s.status === "submitted" || s.status === "expired" ? `/sessions/${s.id}/report` : `/sessions/${s.id}`;
                 const dim = s.status === "cancelled";
                 const first = s.challengeIds[0];
+                const lapsed = inviteLapsed(s);
                 return (
                   <Link key={s.id} href={href} className="row" style={{ gridTemplateColumns: cols, gap: 16, color: dim ? "var(--text-3)" : undefined, ["--i" as string]: Math.min(i, 12) }} data-el={s.status === "running" ? "live-row" : undefined}>
                     <Person email={s.candidateEmail} name={s.candidateName} sub={s.candidateEmail} avatar dim={dim} />
@@ -73,7 +74,7 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
                       {s.challengeIds.length > 1 && <span className="pill" style={{ flex: "none" }} title={s.challengeIds.slice(1).map(title).join(", ")}>+{s.challengeIds.length - 1}</span>}
                     </span>
                     <span data-el={s.status === "submitted" || s.status === "expired" ? "status-review" : undefined} style={{ minWidth: 0 }}>
-                      <StatusBadge i18n={i18n} status={s.status} decision={s.decision} detail={s.status === "running" ? `${s.currentIndex + 1}/${s.challengeIds.length} · ${clock(remainingMs(s))}` : undefined} />
+                      <StatusBadge i18n={i18n} status={lapsed ? "lapsed" : s.status} decision={s.decision} detail={s.status === "running" ? `${s.currentIndex + 1}/${s.challengeIds.length} · ${clock(remainingMs(s))}` : undefined} />
                     </span>
                     <span style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                       {s.status === "invited" ? (
@@ -86,7 +87,7 @@ export default async function SessionsPage({ searchParams }: { searchParams: Pro
                       )}
                     </span>
                     <span style={{ textAlign: "right", color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                      {s.status === "running" ? <span className="btn btn-sm">{t("sessions.watch")}</span> : s.status === "invited" ? t("date.expiresIn", { when: relativeDays(i18n, s.inviteExpiresAt) }) : when(i18n, s.startedAt ?? s.createdAt)}
+                      {s.status === "running" ? <span className="btn btn-sm">{t("sessions.watch")}</span> : lapsed ? t("date.expiredOn", { when: dayOnly(i18n, s.inviteExpiresAt) }) : s.status === "invited" ? t("date.expiresIn", { when: relativeDays(i18n, s.inviteExpiresAt) }) : when(i18n, s.startedAt ?? s.createdAt)}
                     </span>
                   </Link>
                 );

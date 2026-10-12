@@ -1,17 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import { audit, requireAdmin } from "@/lib/auth";
-import { sessionDetail } from "@/lib/sessions";
+import { inviteLapsed, sessionDetail } from "@/lib/sessions";
 import { PageHeader } from "@/components/page-header";
 import { LiveRoom } from "@/components/live-room";
-import { displayName, relativeDays } from "@/lib/format";
+import { dayAndTime, displayName, relativeDays } from "@/lib/format";
 import { getI18n } from "@/lib/i18n/server";
-import type { Locale } from "@/lib/i18n";
 import { endSession } from "../actions";
 import { setupView } from "@/lib/setup/store";
 import { SetupSummary } from "@/components/setup/setup-summary";
 import { PrepSummary } from "@/components/prep-summary";
-
-const dateTag: Record<Locale, string> = { en: "en-US", pt: "pt-BR" };
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -24,22 +21,26 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   const setup = await setupView(id);
   if (session.status === "submitted" || session.status === "expired") redirect(`/sessions/${id}/report`);
   if (session.status === "invited" || session.status === "cancelled") {
-    const waiting = [
-      t("sessions.waiting.notStarted", { email: session.candidateEmail }),
-      session.scheduledAt ? t("sessions.waiting.scheduledFor", { when: session.scheduledAt.toLocaleString(dateTag[i18n.locale], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) }) : "",
-      t("sessions.waiting.expires", { when: relativeDays(i18n, session.inviteExpiresAt) }),
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const lapsed = inviteLapsed(session);
+    const waiting = lapsed
+      ? t("sessions.waiting.lapsed", { email: session.candidateEmail, when: dayAndTime(i18n, session.inviteExpiresAt) })
+      : [
+          t("sessions.waiting.notStarted", { email: session.candidateEmail }),
+          session.scheduledAt ? t("sessions.waiting.scheduledFor", { when: dayAndTime(i18n, session.scheduledAt) }) : "",
+          t("sessions.waiting.expires", { when: relativeDays(i18n, session.inviteExpiresAt) }),
+        ]
+          .filter(Boolean)
+          .join(" ");
+    const pill = session.status === "cancelled" ? t("sessionStatus.cancelled") : lapsed ? t("sessionStatus.lapsed") : t("sessions.waiting.inviteSent");
     return (
       <>
-        <PageHeader crumb={t("sessions.title")} crumbHref="/sessions" title={displayName(session.candidateEmail, session.candidateName)} extra={<span className="pill">{session.status === "invited" ? t("sessions.waiting.inviteSent") : t("sessionStatus.cancelled")}</span>} />
-        <div style={{ padding: 24, maxWidth: 1080, display: "flex", flexDirection: "column", gap: 14 }}>
+        <PageHeader crumb={t("sessions.title")} crumbHref="/sessions" title={displayName(session.candidateEmail, session.candidateName)} extra={<span className="pill">{pill}</span>} />
+        <div className="page" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <p className="muted">{session.status === "invited" ? waiting : t("sessions.waiting.cancelled")}</p>
           {session.status === "invited" && <PrepSummary sessionId={session.id} />}
           <SetupSummary view={setup} />
-          <div className="notice" style={{ background: "var(--surface-2)", color: "var(--text-2)", maxWidth: 640 }}>{t("sessions.waiting.linkOnce")}</div>
-          {session.status === "invited" && <form action={endSession.bind(null, id)}><button className="btn btn-danger">{t("sessions.waiting.cancelInvite")}</button></form>}
+          <div className="notice" style={{ background: "var(--surface-2)", color: "var(--text-2)", maxWidth: 640 }}>{t(lapsed ? "sessions.waiting.lapsedNext" : "sessions.waiting.linkOnce")}</div>
+          {session.status === "invited" && !lapsed && <form action={endSession.bind(null, id)}><button className="btn btn-danger">{t("sessions.waiting.cancelInvite")}</button></form>}
         </div>
       </>
     );

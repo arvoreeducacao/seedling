@@ -31,6 +31,8 @@ export const sessions: Translation<typeof En> = {
   "sessions.waiting.notStarted": "{email} ainda não começou.",
   "sessions.waiting.scheduledFor": "A entrevista está marcada para {when}.",
   "sessions.waiting.expires": "O convite vence {when}.",
+  "sessions.waiting.lapsed": "O convite venceu em {when}, antes de {email} começar.",
+  "sessions.waiting.lapsedNext": "Para chamar de novo, crie um convite novo.",
   "sessions.waiting.cancelled": "Este convite foi cancelado.",
   "sessions.waiting.linkOnce": "O link do convite aparece uma única vez, quando é criado. Para enviar de novo, crie um convite novo.",
   "sessions.waiting.cancelInvite": "Cancelar convite",
