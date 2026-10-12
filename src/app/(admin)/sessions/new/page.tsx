@@ -28,7 +28,7 @@ export default async function NewSessionPage({ searchParams }: { searchParams: P
     <>
       <PageHeader crumb={i18n.t("sessions.title")} crumbHref="/sessions" title={i18n.t("invite.heading")} />
       <InviteForm
-        challenges={challenges.map((c) => ({ id: c.id, title: challengeTitle(i18n, c.title), level: c.level, levelLabel: levelLabel(i18n, c.level), kind: c.kind, minutes: c.minutes, runtime: c.runtime }))}
+        challenges={challenges.map((c) => ({ id: c.id, title: challengeTitle(i18n, c.title), area: c.area, level: c.level, levelLabel: levelLabel(i18n, c.level), kind: c.kind, minutes: c.minutes, runtime: c.runtime }))}
         models={modelOptions}
         taken={sessions.filter((s) => s.status !== "cancelled").map((s) => ({ email: s.candidateEmail, key: s.challengeIds.join(",") }))}
         mailOn={mailConfigured()}

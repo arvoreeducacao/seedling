@@ -34,6 +34,7 @@ export const challenges = sqliteTable("challenges", {
   slug: text("slug").notNull(),
   title: text("title").notNull(),
   summary: text("summary"),
+  area: text("area"),
   level: text("level", { enum: ["junior", "pleno", "senior"] }).notNull(),
   kind: text("kind", { enum: ["code", "screen"] }).notNull().default("code"),
   minutes: integer("minutes").notNull().default(30),

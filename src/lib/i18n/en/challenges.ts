@@ -15,6 +15,8 @@ export const challenges = {
 
   "challenges.filterLevel": "Filter by level",
   "challenges.allLevels": "All levels",
+  "challenges.filterArea": "Filter by area",
+  "challenges.allAreas": "All areas",
   "challenges.filterType": "Filter by type",
   "challenges.anyType": "Any type",
   "challenges.kindScreen": "UI",
@@ -28,7 +30,7 @@ export const challenges = {
   "challenges.colStatus": "Status",
 
   "challenges.noMatchesTitle": "No matches",
-  "challenges.noMatchesText": "No challenge fits this level and type.",
+  "challenges.noMatchesText": "No challenge fits these filters.",
   "challenges.clearFilters": "Clear filters",
 
   "challenges.usedIn": "used in {n} session|used in {n} sessions",
@@ -56,6 +58,8 @@ export const challenges = {
 
   "challenges.settings": "Settings",
   "challenges.fieldTitle": "Title",
+  "challenges.fieldArea": "Area",
+  "challenges.fieldAreaPlaceholder": "Content, Web, Backend…",
   "challenges.fieldLevel": "Level",
   "challenges.fieldType": "Type",
   "challenges.fieldMinutes": "Suggested time",
@@ -108,7 +112,7 @@ export const challenges = {
   "challenges.sortingTraps": 'List the data traps under a "## Traps" heading in RUBRIC.md; each one becomes a checkbox in the review. See examples/book-inventory in the repo.',
   "challenges.privateNoticeShort": "Anything marked {teamOnly} or {reference} never reaches the candidate's sandbox or what Claude can read.",
   "challenges.manifestOptional": "optional",
-  "challenges.manifestText": "Level, type, time and test commands are read from it when present. You can change all of it later.",
+  "challenges.manifestText": "Area, level, type, time and test commands are read from it when present. You can change all of it later.",
   "challenges.publishChecksTitle": "Checks before publishing",
   "challenges.publishChecksText": "The reference solution passes the hidden tests, the starter code doesn't, and no secrets ship with it.",
 

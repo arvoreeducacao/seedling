@@ -11,7 +11,7 @@ import { dayOnly } from "@/lib/format";
 import { isLocale, locales, translator, type Locale } from "@/lib/i18n";
 import { inviteMany, type InviteResult } from "../actions";
 
-export type InviteChallenge = { id: string; title: string; level: string; levelLabel: string; kind: "code" | "screen"; minutes: number; runtime: string };
+export type InviteChallenge = { id: string; title: string; area: string | null; level: string; levelLabel: string; kind: "code" | "screen"; minutes: number; runtime: string };
 export type InviteSetup = { challengeIds: string[]; minutes: number; budgetUsd: number; model: string; mode: "live" | "async" };
 
 type Props = {
@@ -153,7 +153,7 @@ const levelInk: Record<string, string> = { junior: "var(--ok)", pleno: "var(--ac
 
 function ChallengePicker({ all, picked, setPicked }: { all: InviteChallenge[]; picked: string[]; setPicked: (ids: string[]) => void }) {
   const { t } = useI18n();
-  const rest = all.filter((c) => !picked.includes(c.id));
+  const rest = all.filter((c) => !picked.includes(c.id)).sort((a, b) => (a.area ?? "~").localeCompare(b.area ?? "~"));
   const move = (i: number, by: number) => {
     const next = [...picked];
     [next[i], next[i + by]] = [next[i + by], next[i]];
@@ -175,7 +175,7 @@ function ChallengePicker({ all, picked, setPicked }: { all: InviteChallenge[]; p
                 <span className="step-num">{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="truncate" style={{ fontWeight: 500 }}>{c.title}</div>
-                  <div className="faint truncate" style={{ fontSize: 11.5 }}><span style={{ color: levelInk[c.level] }}>{c.levelLabel}</span> · {c.kind === "screen" ? t("invite.kindScreen") : t("kind.code.title")} · {c.runtime} · {c.minutes} {t("common.minutes")}</div>
+                  <div className="faint truncate" style={{ fontSize: 11.5 }}>{c.area && <>{c.area} · </>}<span style={{ color: levelInk[c.level] }}>{c.levelLabel}</span> · {c.kind === "screen" ? t("invite.kindScreen") : t("kind.code.title")} · {c.runtime} · {c.minutes} {t("common.minutes")}</div>
                 </div>
                 <div style={{ display: "flex", gap: 2 }}>
                   <button type="button" className="btn btn-ghost btn-sm btn-icon" aria-label={t("invite.moveUp", { title: c.title })} disabled={i === 0} onClick={() => move(i, -1)}><Arrow up /></button>
@@ -194,7 +194,7 @@ function ChallengePicker({ all, picked, setPicked }: { all: InviteChallenge[]; p
           placeholder={picked.length ? t("invite.addAnother") : t("invite.chooseChallenge")}
           value=""
           onChange={(id) => setPicked([...picked, id])}
-          options={rest.map((c) => ({ value: c.id, label: c.title, text: c.title, hint: `${c.levelLabel} · ${c.minutes} ${t("common.minutes")}` }))}
+          options={rest.map((c) => ({ value: c.id, label: c.title, text: c.title, hint: `${c.area ? `${c.area} · ` : ""}${c.levelLabel} · ${c.minutes} ${t("common.minutes")}` }))}
         />
       )}
     </div>

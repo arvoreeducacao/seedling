@@ -121,3 +121,9 @@ export function parseTestCounts(output: string, exitCode: number) {
   if (vitest) return { passed: Number(vitest[2]), total: Number(vitest[3]) };
   return { passed: exitCode === 0 ? 1 : 0, total: 1 };
 }
+
+export function areaName(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/\s+/g, " ").slice(0, 40);
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : null;
+}

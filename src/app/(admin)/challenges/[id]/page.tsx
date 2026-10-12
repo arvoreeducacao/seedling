@@ -61,6 +61,7 @@ export default async function ChallengePage({ params, searchParams }: { params: 
   const { id } = await params;
   const { tab = "brief" } = await searchParams;
   const challenge = await db.query.challenges.findFirst({ where: eq(schema.challenges.id, id) });
+  const areas = [...new Set((await db.query.challenges.findMany({ columns: { area: true } })).map((c) => c.area).filter((a): a is string => Boolean(a)))].sort();
   if (!challenge) notFound();
   const files = await db.query.challengeFiles.findMany({ where: eq(schema.challengeFiles.challengeId, id), orderBy: asc(schema.challengeFiles.path) });
   const groups = folders(files);
@@ -127,6 +128,7 @@ export default async function ChallengePage({ params, searchParams }: { params: 
             <div className="card-head">{t("challenges.settings")}</div>
             <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <label className="field"><span>{t("challenges.fieldTitle")}</span><input className="input" name="title" defaultValue={challenge.title} /></label>
+              <label className="field"><span>{t("challenges.fieldArea")}</span><input className="input" name="area" list="challenge-areas" defaultValue={challenge.area ?? ""} placeholder={t("challenges.fieldAreaPlaceholder")} maxLength={40} /><datalist id="challenge-areas">{areas.map((a) => <option key={a} value={a} />)}</datalist></label>
               <div className="field"><span>{t("challenges.fieldLevel")}</span>
                 <Segmented name="level" ariaLabel={t("challenges.fieldLevel")} block defaultValue={challenge.level} options={(["junior", "pleno", "senior"] as const).map((l) => ({ value: l, label: levelLabel(i18n, l) }))} />
               </div>

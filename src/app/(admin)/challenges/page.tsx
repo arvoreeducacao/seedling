@@ -22,19 +22,22 @@ const statusPill: Record<"published" | "draft" | "checking" | "error", [string, 
   error: ["pill-err", "challenges.status.error"],
 };
 
-export default async function ChallengesPage({ searchParams }: { searchParams: Promise<{ level?: string; kind?: string }> }) {
+export default async function ChallengesPage({ searchParams }: { searchParams: Promise<{ level?: string; kind?: string; area?: string }> }) {
   const i18n = await getI18n();
   const { t } = i18n;
-  const { level, kind } = await searchParams;
+  const { level, kind, area } = await searchParams;
   const [challenges, attempts] = await Promise.all([
     db.query.challenges.findMany({ orderBy: desc(schema.challenges.createdAt) }),
     db.query.attempts.findMany({ columns: { challengeId: true, hiddenPassed: true, hiddenTotal: true } }),
   ]);
-  const shown = challenges.filter((c) => (!level || c.level === level) && (!kind || c.kind === kind));
-  const href = (next: { level?: string; kind?: string }) => {
+  const areas = [...new Set(challenges.map((c) => c.area).filter((a): a is string => Boolean(a)))].sort();
+  const shown = challenges.filter((c) => (!level || c.level === level) && (!kind || c.kind === kind) && (!area || c.area === area));
+  const href = (next: { level?: string; kind?: string; area?: string }) => {
     const q = new URLSearchParams();
     const l = "level" in next ? next.level : level;
     const k = "kind" in next ? next.kind : kind;
+    const a = "area" in next ? next.area : area;
+    if (a) q.set("area", a);
     if (l) q.set("level", l);
     if (k) q.set("kind", k);
     const s = q.toString();
@@ -51,6 +54,11 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
           </div>
         ) : (
           <>
+            {areas.length > 0 && (
+              <div className="toolbar">
+                <SegNav ariaLabel={t("challenges.filterArea")} items={[{ href: href({ area: undefined }), label: t("challenges.allAreas"), active: !area }, ...areas.map((a) => ({ href: href({ area: a }), label: a, count: challenges.filter((c) => c.area === a).length, active: area === a }))]} />
+              </div>
+            )}
             <div className="toolbar">
               <SegNav ariaLabel={t("challenges.filterLevel")} items={[{ href: href({ level: undefined }), label: t("challenges.allLevels"), active: !level }, ...(["junior", "pleno", "senior"] as const).map((l) => ({ href: href({ level: l }), label: levelLabel(i18n, l), count: challenges.filter((c) => c.level === l).length, active: level === l }))]} />
               <SegNav ariaLabel={t("challenges.filterType")} items={[{ href: href({ kind: undefined }), label: t("challenges.anyType"), active: !kind }, { href: href({ kind: "code" }), label: t("kind.code.title"), active: kind === "code" }, { href: href({ kind: "screen" }), label: t("challenges.kindScreen"), active: kind === "screen" }]} />
@@ -73,7 +81,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
                     <Link key={c.id} href={`/challenges/${c.id}`} className="row" style={{ gridTemplateColumns: cols, gap: 16, color: draft ? "var(--text-2)" : undefined, ["--i" as string]: Math.min(i, 12) }} data-el="challenge-row">
                       <div style={{ minWidth: 0 }}>
                         <div className="truncate" style={{ fontWeight: 600, color: draft ? "var(--text-2)" : "var(--text)" }}>{c.title || t("challenges.untitled")}</div>
-                        <div className="truncate" style={{ fontSize: 12.5, color: failing ? "#ff8a8e" : "var(--text-3)" }}>{failing ? checkTitle(t, failing) : `${c.runtime} · ${t("challenges.usedIn", { n: used.length })}`}</div>
+                        <div className="truncate" style={{ fontSize: 12.5, color: failing ? "#ff8a8e" : "var(--text-3)" }}>{failing ? checkTitle(t, failing) : `${c.area ? `${c.area} · ` : ""}${c.runtime} · ${t("challenges.usedIn", { n: used.length })}`}</div>
                       </div>
                       <span><span className={`pill ${levelPill[c.level]}`}>{levelLabel(i18n, c.level)}</span></span>
                       <span className="muted">{c.kind === "screen" ? t("challenges.kindScreen") : t("kind.code.title")}</span>

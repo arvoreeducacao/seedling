@@ -258,6 +258,7 @@ seedling.json         optional settings
 ```json
 {
   "title": "The inventory that doesn't add up",
+  "area": "Content",
   "level": "junior",
   "kind": "code",
   "minutes": 20,
@@ -267,7 +268,7 @@ seedling.json         optional settings
 }
 ```
 
-Every field is optional. `level` is `junior`, `mid` or `senior`. `kind` is `code`, or `screen` for challenges where the candidate builds a UI (a `preview` implies it). `runtime` is inferred: `node` when there is a `package.json`, `python` when there are `.py` files or a `requirements.txt`. Test commands are inferred from the runtime and the folders.
+Every field is optional. `area` is free text (for example `Content` or `Web`) and groups challenges on the list and in invites. `level` is `junior`, `mid` or `senior`. `kind` is `code`, or `screen` for challenges where the candidate builds a UI (a `preview` implies it). `runtime` is inferred: `node` when there is a `package.json`, `python` when there are `.py` files or a `requirements.txt`. Test commands are inferred from the runtime and the folders.
 
 What makes a good challenge:
 
