@@ -63,6 +63,7 @@ export default async function NewChallengePage() {
               <p className="faint" style={{ fontSize: 12, lineHeight: 1.55 }}>{t("challenges.manifestText")}</p>
               <pre className="mono scroll-thin" style={{ marginTop: 12, fontSize: 11.5, lineHeight: 1.65, background: "var(--bg-raised)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 12, overflowX: "auto", color: "var(--text-2)" }}>{`{
   "title": "Book inventory",
+  "area": "Content",
   "level": "senior",
   "minutes": 35,
   "test": {

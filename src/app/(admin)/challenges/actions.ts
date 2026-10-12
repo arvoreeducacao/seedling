@@ -8,6 +8,7 @@ import { audit, requireAdmin } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
 import { dataPath } from "@/lib/env";
 import { runChecks } from "@/lib/challenges/store";
+import { areaName } from "@/lib/challenges/classify";
 
 export async function updateChallenge(id: string, formData: FormData) {
   const admin = await requireAdmin();
@@ -17,6 +18,7 @@ export async function updateChallenge(id: string, formData: FormData) {
     .update(schema.challenges)
     .set({
       title: String(formData.get("title") ?? "").trim(),
+      area: areaName(formData.get("area")),
       level: ["junior", "pleno", "senior"].includes(level) ? level : "pleno",
       kind: kind === "screen" ? "screen" : "code",
       minutes: Math.max(5, Math.min(480, Number(formData.get("minutes") ?? 30))),

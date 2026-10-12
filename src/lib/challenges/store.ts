@@ -10,6 +10,7 @@ import { copyTreeNoLinks, makeTreeWritable } from "@/lib/safe-path";
 import { AppError, type Key } from "@/lib/i18n";
 import type { ChallengeCheck } from "@/lib/db/schema";
 import {
+  areaName,
   classify,
   findSecrets,
   hiddenDirOf,
@@ -27,6 +28,7 @@ import {
 type Manifest = {
   title?: string;
   summary?: string;
+  area?: string;
   level?: "junior" | "mid" | "pleno" | "senior";
   kind?: "code" | "screen";
   minutes?: number;
@@ -139,6 +141,7 @@ export async function importZip(buffer: Buffer, createdBy: string) {
     slug: slugify(title),
     title,
     summary: manifest.summary ?? statement.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.slice(0, 200) ?? null,
+    area: areaName(manifest.area),
     level: !manifest.level || manifest.level === "mid" ? "pleno" : manifest.level,
     kind: manifest.kind ?? (manifest.preview ? "screen" : "code"),
     minutes: manifest.minutes ?? 30,

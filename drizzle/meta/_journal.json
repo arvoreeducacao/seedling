@@ -64,6 +64,13 @@
       "when": 1791620000000,
       "tag": "0008_cold_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791769250941,
+      "tag": "0009_condemned_pixie",
+      "breakpoints": true
     }
   ]
 }

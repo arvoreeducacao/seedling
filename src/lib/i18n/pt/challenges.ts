@@ -18,6 +18,8 @@ export const challenges: Translation<typeof En> = {
 
   "challenges.filterLevel": "Filtrar por nível",
   "challenges.allLevels": "Todos os níveis",
+  "challenges.filterArea": "Filtrar por área",
+  "challenges.allAreas": "Todas as áreas",
   "challenges.filterType": "Filtrar por tipo",
   "challenges.anyType": "Qualquer tipo",
   "challenges.kindScreen": "UI",
@@ -31,7 +33,7 @@ export const challenges: Translation<typeof En> = {
   "challenges.colStatus": "Status",
 
   "challenges.noMatchesTitle": "Nada encontrado",
-  "challenges.noMatchesText": "Nenhum desafio combina com esse nível e tipo.",
+  "challenges.noMatchesText": "Nenhum desafio combina com esses filtros.",
   "challenges.clearFilters": "Limpar filtros",
 
   "challenges.usedIn": "usado em {n} sessão|usado em {n} sessões",
@@ -59,6 +61,8 @@ export const challenges: Translation<typeof En> = {
 
   "challenges.settings": "Configurações",
   "challenges.fieldTitle": "Título",
+  "challenges.fieldArea": "Área",
+  "challenges.fieldAreaPlaceholder": "Conteúdo, Web, Backend…",
   "challenges.fieldLevel": "Nível",
   "challenges.fieldType": "Tipo",
   "challenges.fieldMinutes": "Tempo sugerido",
@@ -111,7 +115,7 @@ export const challenges: Translation<typeof En> = {
   "challenges.sortingTraps": 'Liste as armadilhas dos dados sob um título "## Armadilhas" no RUBRIC.md; cada uma vira um checkbox na avaliação. Veja examples/book-inventory no repositório.',
   "challenges.privateNoticeShort": "O que está marcado como {teamOnly} ou {reference} nunca chega ao sandbox do candidato nem ao que o Claude lê.",
   "challenges.manifestOptional": "opcional",
-  "challenges.manifestText": "Nível, tipo, tempo e comandos de teste saem dele quando existe. Você pode mudar tudo depois.",
+  "challenges.manifestText": "Área, nível, tipo, tempo e comandos de teste saem dele quando existe. Você pode mudar tudo depois.",
   "challenges.publishChecksTitle": "Verificações antes de publicar",
   "challenges.publishChecksText": "A solução de referência passa nos testes ocultos, o código inicial não passa, e nenhum segredo vai junto.",
 

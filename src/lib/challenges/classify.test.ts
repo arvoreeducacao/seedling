@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classify, findSecrets, hiddenDirOf, parseTestCounts, pickStatement, referenceTarget, statementLeaks, stripCommonRoot, trapsFrom } from "./classify";
+import { areaName, classify, findSecrets, hiddenDirOf, parseTestCounts, pickStatement, referenceTarget, statementLeaks, stripCommonRoot, trapsFrom } from "./classify";
 
 describe("classify", () => {
   const statement = pickStatement(["CHALLENGE.md", "README.md", "client/a.js"]);
@@ -115,5 +115,21 @@ describe("parseTestCounts", () => {
 
   it("falls back to the exit code", () => {
     expect(parseTestCounts("ok", 0)).toEqual({ passed: 1, total: 1 });
+  });
+});
+
+describe("areaName", () => {
+  it("trims, collapses spaces and capitalizes the first letter", () => {
+    expect(areaName("  conteúdo   de livros ")).toBe("Conteúdo de livros");
+  });
+
+  it("returns null for blanks and non-strings", () => {
+    expect(areaName("   ")).toBeNull();
+    expect(areaName(undefined)).toBeNull();
+    expect(areaName(42)).toBeNull();
+  });
+
+  it("caps the length at 40 characters", () => {
+    expect(areaName("a".repeat(60))?.length).toBe(40);
   });
 });
