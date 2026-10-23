@@ -9,7 +9,7 @@ import { sandbox } from "@/lib/sandbox";
 import { copyTreeNoLinks, makeTreeWritable } from "@/lib/safe-path";
 import { resetHarness } from "./grading";
 import { AppError, type Key } from "@/lib/i18n";
-import type { ChallengeCheck } from "@/lib/db/schema";
+import { WARNING_CHECKS, type ChallengeCheck } from "@/lib/db/schema";
 import {
   areaName,
   classify,
@@ -20,6 +20,7 @@ import {
   pickStatement,
   referenceTarget,
   statementLeaks,
+  looseAnswers,
   stripCommonRoot,
   trapsFrom,
   type FileRole,
@@ -237,7 +238,21 @@ async function staticChecksFor(challengeId: string, statement: string): Promise<
     files.filter((f) => f.role === "hidden" || f.role === "reference" || f.role === "team").map((f) => f.path),
     files.filter((f) => f.role === "visible" || f.role === "visible-test" || f.role === "statement").map((f) => f.path),
   );
+  const loose = looseAnswers(files.filter((f) => f.role === "visible" || f.role === "visible-test").map((f) => f.path));
   return [
+    loose.length
+      ? {
+          key: "loose-answers",
+          ok: false,
+          titleMessage: { key: "challenges.check.looseFail" },
+          detailFindings: loose.slice(0, 5).map((path) => ({ key: "challenges.loose", params: { path } })),
+        }
+      : {
+          key: "loose-answers",
+          ok: true,
+          titleMessage: { key: "challenges.check.looseOk" },
+          detailMessage: { key: "challenges.check.looseOkDetail" },
+        },
     secrets.length
       ? {
           key: "no-secrets",
@@ -331,7 +346,7 @@ export async function runChecks(challengeId: string) {
     });
   }
   const checks = [...dynamic, ...staticChecks];
-  const blocking = checks.some((c) => !c.ok && c.key !== "statement-leak");
+  const blocking = checks.some((c) => !c.ok && !WARNING_CHECKS.includes(c.key));
   await db
     .update(schema.challenges)
     .set({ checks, status: blocking ? "error" : "draft", updatedAt: new Date() })

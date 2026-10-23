@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaName, classify, findSecrets, hiddenDirOf, parseTestCounts, pickStatement, referenceTarget, statementLeaks, stripCommonRoot, trapsFrom } from "./classify";
+import { areaName, classify, findSecrets, hiddenDirOf, looseAnswers, parseTestCounts, pickStatement, referenceTarget, statementLeaks, stripCommonRoot, trapsFrom } from "./classify";
 
 describe("classify", () => {
   const statement = pickStatement(["CHALLENGE.md", "README.md", "client/a.js"]);
@@ -131,5 +131,14 @@ describe("areaName", () => {
 
   it("caps the length at 40 characters", () => {
     expect(areaName("a".repeat(60))?.length).toBe(40);
+  });
+
+  it("flags answer files left outside their folder", () => {
+    expect(looseAnswers(["solution.py", "src/gabarito.md", "hidden_tests.py", "reference-solution.js", "src/app.js", "src/solutions-grid.tsx", "docs/answering.md"])).toEqual([
+      "solution.py",
+      "src/gabarito.md",
+      "hidden_tests.py",
+      "reference-solution.js",
+    ]);
   });
 });

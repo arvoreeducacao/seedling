@@ -86,6 +86,9 @@ export const challenges: Translation<typeof En> = {
   "challenges.check.leakOk": "O enunciado não cita arquivo oculto",
   "challenges.check.leakOkDetail": "nada que é só do time aparece no texto",
   "challenges.check.leakFail": "O enunciado cita um arquivo que o candidato não vê",
+  "challenges.check.looseOk": "Nenhum gabarito solto",
+  "challenges.check.looseOkDetail": "nada com nome de solução ou teste oculto fora da pasta",
+  "challenges.check.looseFail": "Um arquivo com nome de gabarito vai para o candidato",
   "challenges.check.noHiddenTestsDetail": "adicione uma pasta hidden-tests/ ou defina o comando no seedling.json",
   "challenges.check.referenceOk": "A solução de referência passa em tudo",
   "challenges.check.referenceFail": "A solução de referência falha nos testes ocultos",
@@ -107,6 +110,7 @@ export const challenges: Translation<typeof En> = {
   "challenges.secret.privateKey": "{path}: chave privada",
   "challenges.secret.slack": "{path}: token do Slack",
   "challenges.leak": "linha {line} cita {path}",
+  "challenges.loose": "{path} fica visível: mova para solution/ ou hidden-tests/ se não é para o candidato",
 
   "challenges.uploadTitle": "Suba um desafio",
   "challenges.uploadText": "Zipe a pasta do desafio e solte aqui embaixo. Você vê o enunciado exatamente como o candidato vai ver, a rubrica e as verificações automáticas antes de publicar.",

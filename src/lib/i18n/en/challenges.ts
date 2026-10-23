@@ -83,6 +83,9 @@ export const challenges = {
   "challenges.check.leakOk": "The statement mentions no hidden file",
   "challenges.check.leakOkDetail": "nothing that is team-only shows up in the text",
   "challenges.check.leakFail": "The statement mentions a file the candidate can't see",
+  "challenges.check.looseOk": "No loose answer files",
+  "challenges.check.looseOkDetail": "nothing named like a solution or hidden test outside its folder",
+  "challenges.check.looseFail": "A file named like an answer goes to the candidate",
   "challenges.check.noHiddenTestsDetail": "add a hidden-tests/ folder or set the command in seedling.json",
   "challenges.check.referenceOk": "The reference solution passes everything",
   "challenges.check.referenceFail": "The reference solution fails hidden tests",
@@ -104,6 +107,7 @@ export const challenges = {
   "challenges.secret.privateKey": "{path}: private key",
   "challenges.secret.slack": "{path}: Slack token",
   "challenges.leak": "line {line} mentions {path}",
+  "challenges.loose": "{path} is visible: move it into solution/ or hidden-tests/ if it is not meant for them",
 
   "challenges.uploadTitle": "Upload a challenge",
   "challenges.uploadText": "Zip the challenge folder and drop it below. You'll see the brief exactly as the candidate will, the rubric, and automatic checks before you publish.",

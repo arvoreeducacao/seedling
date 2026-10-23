@@ -97,6 +97,13 @@ export function statementLeaks(statementText: string, privatePaths: string[], vi
   return leaks;
 }
 
+const looseAnswer = /^(solution|solutions|solucao|solução|gabarito|answer|answers|resposta|respostas|reference[-_]solution|hidden[-_]?tests?|testes?[-_]ocultos?)(\.[^/]*)?$/i;
+
+// Folder names decide what stays private, so a loose solution.py or hidden_tests.py goes to the candidate.
+export function looseAnswers(visiblePaths: string[]) {
+  return visiblePaths.filter((p) => looseAnswer.test(p.split("/").pop() ?? ""));
+}
+
 export function parseTestCounts(output: string, exitCode: number) {
   // The runner prints its summary last; anything earlier may be the candidate's code printing a fake one.
   const n = (re: RegExp) => {

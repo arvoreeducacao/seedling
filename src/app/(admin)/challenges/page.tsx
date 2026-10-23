@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Empty } from "@/components/empty";
 import { SegNav } from "@/components/motion";
 import { db, schema } from "@/lib/db";
+import { WARNING_CHECKS } from "@/lib/db/schema";
 import { levelLabel, levelPill } from "@/lib/format";
 import { checkTitle } from "@/lib/checks";
 import { getI18n } from "@/lib/i18n/server";
@@ -75,7 +76,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
                   const done = used.filter((a) => a.hiddenTotal);
                   const avg = done.length ? Math.round((done.reduce((s, a) => s + (a.hiddenPassed ?? 0) / (a.hiddenTotal ?? 1), 0) / done.length) * 100) : null;
                   const [pill, label] = statusPill[c.status];
-                  const failing = c.checks.find((k) => !k.ok && k.key !== "statement-leak");
+                  const failing = c.checks.find((k) => !k.ok && !WARNING_CHECKS.includes(k.key));
                   const draft = c.status === "draft";
                   return (
                     <Link key={c.id} href={`/challenges/${c.id}`} className="row" style={{ gridTemplateColumns: cols, gap: 16, color: draft ? "var(--text-2)" : undefined, ["--i" as string]: Math.min(i, 12) }} data-el="challenge-row">
