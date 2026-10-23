@@ -141,3 +141,20 @@ describe("gateway budget", () => {
     await settle();
   });
 });
+
+describe("token counting", () => {
+  it("caps how often and how many at once one pass can count", async () => {
+    const { token } = await newPass(5);
+    const count = () => gateway.countTokens(new Request("http://seedling.test/v1/messages/count_tokens", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "anthropic-beta": "context-1m-2025-08-07" }, body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }) }));
+    const res = await count();
+    expect(res.status).toBe(200);
+    expect(gateway.admitCount("p", 1, 0)).toBeTypeOf("function");
+    expect(gateway.admitCount("p", 1, 1)).toBeNull();
+    const release = gateway.admitCount("q", 100, 0)!;
+    release();
+    for (let i = 1; i < 60; i++) gateway.admitCount("q", 100, i)?.();
+    expect(gateway.admitCount("q", 100, 100)).toBeNull();
+    expect(gateway.admitCount("q", 100, 60_001)).toBeTypeOf("function");
+  });
+});
+

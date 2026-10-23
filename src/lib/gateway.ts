@@ -270,22 +270,46 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
   return new Response(text, { status: upstream.status, headers: outHeaders });
 }
 
+const COUNT_PER_MINUTE = 60;
+const countWindows = new Map<string, { start: number; count: number; inflight: number }>();
+
+// Counting tokens is free upstream but shares the organisation's rate limit with every candidate.
+export function admitCount(passId: string, maxInflight: number, now = Date.now()) {
+  const window = countWindows.get(passId) ?? { start: now, count: 0, inflight: 0 };
+  if (now - window.start >= 60_000) Object.assign(window, { start: now, count: 0 });
+  if (window.inflight >= maxInflight || window.count >= COUNT_PER_MINUTE) return null;
+  window.count++;
+  window.inflight++;
+  countWindows.set(passId, window);
+  return () => {
+    window.inflight = Math.max(0, window.inflight - 1);
+  };
+}
+
 export async function countTokens(req: Request, readerLocale?: Locale) {
   const check = await checkPass(tokenFromHeaders(req.headers));
   if (!check.ok) return errorResponse(check.status, localeOf(readerLocale, check.locale), check.reason, check.params);
-  const body = await req.json().catch(() => ({}));
-  body.model = upstreamModel(check.session.model);
-  const upstream = await fetch(`${env.anthropicUpstream}/v1/messages/count_tokens`, {
-    method: "POST",
-    headers: {
+  const { t } = i18nFor(localeOf(readerLocale, check.session.locale));
+  if (!env.anthropicKey) return errorResponse(503, t, "pass.noServerKey");
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return errorResponse(400, t, "error.badBody");
+  const done = admitCount(check.pass.id, env.ai.maxInflight);
+  if (!done) return errorResponse(429, t, "pass.tooManyParallel", { max: env.ai.maxInflight });
+  try {
+    body.model = upstreamModel(check.session.model);
+    const headers: Record<string, string> = {
       "x-api-key": env.anthropicKey,
       "anthropic-version": req.headers.get("anthropic-version") ?? "2023-06-01",
       "content-type": "application/json",
-      ...(req.headers.get("anthropic-beta") ? { "anthropic-beta": req.headers.get("anthropic-beta")! } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  return new Response(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
+    };
+    const betas = filterBetas(req.headers.get("anthropic-beta"));
+    if (betas) headers["anthropic-beta"] = betas;
+    const upstream = await fetch(`${env.anthropicUpstream}/v1/messages/count_tokens`, { method: "POST", headers, body: JSON.stringify(body) }).catch(() => null);
+    if (!upstream) return errorResponse(502, t, "pass.upstreamDown");
+    return new Response(await upstream.text(), { status: upstream.status, headers: { "content-type": "application/json" } });
+  } finally {
+    done();
+  }
 }
 
 function localeOf(...candidates: (Locale | undefined)[]): Locale {
