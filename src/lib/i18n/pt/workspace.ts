@@ -342,5 +342,6 @@ export const workspace: Translation<typeof En> = {
   "event.agentClose": "fechou {name}",
   "event.agentCloseUnmerged": "fechou {name} sem juntar {n} arquivo mudado|fechou {name} sem juntar {n} arquivos mudados",
   "event.browse": "abriu {address} no navegador",
+  "event.diskFull": "sandbox parado porque o disco do servidor estava quase cheio ({mb} MB nesta sessão)",
   "event.unknown": "{kind}",
 };

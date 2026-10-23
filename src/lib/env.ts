@@ -86,6 +86,7 @@ export const env = {
     pids: Number(process.env.SEEDLING_SANDBOX_PIDS ?? 1024),
     maxConcurrent: Number(process.env.SEEDLING_SANDBOX_MAX_CONCURRENT ?? 2),
     workspaceMaxMb: Number(process.env.SEEDLING_SANDBOX_WORKSPACE_MAX_MB ?? 200),
+    diskReserveMb: Number(process.env.SEEDLING_DISK_RESERVE_MB ?? 2048),
     maxAgents: Math.max(1, Number(process.env.SEEDLING_MAX_AGENTS ?? 4) || 4),
   },
 };

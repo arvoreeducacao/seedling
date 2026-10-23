@@ -185,7 +185,7 @@ export const events = sqliteTable("events", {
   id: id(),
   sessionId: text("session_id").notNull(),
   kind: text("kind", {
-    enum: ["start", "file-open", "file-save", "paste", "apply-ai", "test-run", "submit", "note", "extend", "revoke", "message", "pause", "resume", "browse", "agent-open", "agent-close", "agent-merge", "agent-rename"],
+    enum: ["start", "file-open", "file-save", "paste", "apply-ai", "test-run", "submit", "note", "extend", "revoke", "message", "pause", "resume", "browse", "agent-open", "agent-close", "agent-merge", "agent-rename", "disk-full"],
   }).notNull(),
   actor: text("actor").notNull(),
   data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
