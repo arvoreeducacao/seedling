@@ -21,6 +21,7 @@ export const server = {
   "pass.turnedOff": "Claude access for this session was turned off",
   "pass.timeOver": "the session time is over",
   "pass.capReached": "the session spending cap was reached",
+  "pass.capNotEnoughLeft": "this request needs more than the US$ {left} left in the session budget; start a fresh conversation (/clear) or /compact to send less context",
   "pass.monthlyCap": "the organization monthly cap was reached",
   "pass.noServerKey": "the server has no ANTHROPIC_API_KEY",
   "pass.tooManyParallel": "too many parallel requests for this session (limit {max})",

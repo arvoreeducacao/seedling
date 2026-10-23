@@ -24,19 +24,20 @@ export async function locked() {
   return Response.json({ error: t("setup.lockedError") }, { status: 409 });
 }
 
-export async function respond(access: SetupAccess) {
-  return Response.json({ setup: await setupView(access.session.id), editable: access.editable });
+export async function respond(access: SetupAccess, extra?: Record<string, unknown>) {
+  return Response.json({ ...extra, setup: await setupView(access.session.id), editable: access.editable });
 }
 
-export async function attempt(access: SetupAccess, work: () => Promise<unknown>) {
+export async function attempt(access: SetupAccess, work: () => Promise<Record<string, unknown> | void>) {
   if (!access.editable) return locked();
   const { t } = await getI18n();
+  let extra: Record<string, unknown> | void;
   try {
-    await work();
+    extra = await work();
   } catch (error) {
     if (error instanceof SetupError) return Response.json({ error: t(error.key, error.params) }, { status: 400 });
     console.error("[seedling] setup update failed", access.session.id);
     return Response.json({ error: t("setup.saveFailed") }, { status: 500 });
   }
-  return respond(access);
+  return respond(access, extra ?? undefined);
 }

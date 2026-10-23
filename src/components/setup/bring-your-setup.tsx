@@ -11,6 +11,9 @@ import css from "./setup.module.css";
 
 type Section = "skills" | "claudeMd" | "mcp";
 type Errors = Partial<Record<Section, string>>;
+type Skipped = { path: string; reason: keyof typeof SKIP_REASONS };
+
+const SKIP_REASONS = { hidden: "setup.skip.hidden", binary: "setup.skip.binary", tooBig: "setup.skip.tooBig", outside: "setup.skip.outside" } as const;
 
 const MCP_EXAMPLE = `{
   "mcpServers": {
@@ -142,6 +145,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
   const [editable, setEditable] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
+  const [skipped, setSkipped] = useState<Skipped[]>([]);
   const [busy, setBusy] = useState<Section | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -186,6 +190,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
   async function send(section: Section, url: string, init: RequestInit) {
     setBusy(section);
     setErrors((e) => ({ ...e, [section]: undefined }));
+    if (section === "skills") setSkipped([]);
     const res = await fetch(url, init).catch(() => null);
     const json = await res?.json().catch(() => null);
     setBusy(null);
@@ -194,6 +199,7 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
       return false;
     }
     apply(json);
+    if (Array.isArray(json.skipped)) setSkipped(json.skipped);
     return true;
   }
 
@@ -278,6 +284,12 @@ export function BringYourSetup({ token, onItems }: { token: string; onItems?: (c
               </>
             )}
             <ErrorLine text={errors.skills} />
+            {skipped.length > 0 && (
+              <div className={css.note} data-el="skill-skipped">
+                <Warning size={14} />
+                <span>{t("setup.skills.skipped", { list: skipped.map((s) => `${s.path} (${t(SKIP_REASONS[s.reason], { kb: setup.limits.fileBytes / 1024 })})`).join(", ") })}</span>
+              </div>
+            )}
             {setup.skills.length ? (
               <ul className={css.list}>
                 <AnimatePresence initial={false}>

@@ -79,7 +79,7 @@ describe("zip safety", () => {
     ]);
     const many = readSkillZip(zipOf({ "skills/a/SKILL.md": "a", "skills/b/SKILL.md": "b", "skills/README.md": "x", "__MACOSX/._a": "junk" }));
     expect(many.skills.map((s) => s.name)).toEqual(["a", "b"]);
-    expect(many.ignored).toEqual(["skills/README.md"]);
+    expect(many.skipped).toEqual([{ path: "skills/README.md", reason: "outside" }]);
     expect(readSkillZip(zipOf({ "SKILL.md": SKILL }), "whatever.zip").skills[0].name).toBe("review-helper");
   });
 
@@ -96,13 +96,41 @@ describe("zip safety", () => {
     expect(() => readSkillZip(buffer)).toThrow("setup.zipSymlink");
   });
 
-  it("rejects binary files and non UTF-8 text", () => {
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/logo.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]) }))).toThrow("setup.notText");
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/latin.md": Buffer.from([0xff, 0xfe, 0x41]) }))).toThrow("setup.notUtf8");
+  it("leaves binaries, non UTF-8 text, oversized files and hidden folders out instead of failing", () => {
+    const result = readSkillZip(
+      zipOf({
+        "s/SKILL.md": "a",
+        "s/assets/logo.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1]),
+        "s/latin.md": Buffer.from([0xff, 0xfe, 0x41]),
+        "s/huge.md": "a".repeat(SETUP_LIMITS.fileBytes + 1),
+        "s/.gitignore": "node_modules",
+        "s/.git/config": "x",
+        "s/.git/HEAD": "x",
+        "s/node_modules/x/index.js": "x",
+      }),
+    );
+    expect(result.skills).toEqual([{ name: "s", files: [{ path: "SKILL.md", content: "a" }] }]);
+    const byPath = (a: { path: string }, b: { path: string }) => a.path.localeCompare(b.path);
+    expect([...result.skipped].sort(byPath)).toEqual([
+      { path: "s/assets/logo.png", reason: "binary" },
+      { path: "s/latin.md", reason: "binary" },
+      { path: "s/huge.md", reason: "tooBig" },
+      { path: "s/.gitignore", reason: "hidden" },
+      { path: "s/.git/", reason: "hidden" },
+      { path: "s/node_modules/", reason: "hidden" },
+    ].sort(byPath));
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": Buffer.from([0x41, 0]) }))).toThrow("setup.notText");
+  });
+
+  it("accepts accented and spaced file names, the way people name files", () => {
+    const decomposed = "padro\u0303es.md";
+    const result = readSkillZip(zipOf({ "backend-nestjs/SKILL.md": "a", [`backend-nestjs/references/${decomposed}`]: "b", "backend-nestjs/Guia (v2).md": "c" }));
+    expect(result.skills[0].files.map((f) => f.path)).toEqual(["SKILL.md", "Guia (v2).md", "references/padrões.md"]);
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/x.md": "b" }, (z) => rename(z, "s/x.md", "s/a:b.md")))).toThrow("setup.pathUnsupported");
   });
 
   it("rejects bombs, too many files, nested skills and junk", () => {
-    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a", "s/big.md": "a".repeat(SETUP_LIMITS.fileBytes + 1) }))).toThrow("setup.fileTooBig");
+    expect(() => readSkillZip(zipOf({ "s/SKILL.md": "a".repeat(SETUP_LIMITS.fileBytes + 1) }))).toThrow("setup.fileTooBig");
     const files = Object.fromEntries(Array.from({ length: SETUP_LIMITS.files + 1 }, (_, i) => [i ? `s/f${i}.md` : "s/SKILL.md", "x"]));
     expect(() => readSkillZip(zipOf(files))).toThrow("setup.zipTooManyFiles");
     expect(() => readSkillZip(zipOf({ "a/SKILL.md": "a", "a/b/SKILL.md": "b" }))).toThrow("setup.zipNestedSkill");
