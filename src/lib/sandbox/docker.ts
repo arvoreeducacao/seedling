@@ -7,6 +7,7 @@ import { SETUP_MOUNT } from "@/lib/setup/mount";
 import type { RunResult, SandboxDriver, Shell, ShellOptions, StartOptions } from "./types";
 
 const LABEL = "seedling.session";
+const NETWORK_LABEL = "seedling.sandbox-network";
 
 const RELAY = `const net=require("net");const port=Number(process.argv[1]);const hosts=["127.0.0.1","::1"];let i=0;let up=false;function open(){const s=net.connect(port,hosts[i]);s.once("connect",()=>{up=true;process.stdin.pipe(s);s.pipe(process.stdout)});s.on("close",()=>{if(up)process.exit(0)});s.on("error",()=>{if(up)return;i++;if(i<hosts.length)open();else process.exit(3)})}open();`;
 
@@ -121,16 +122,25 @@ export function dockerDriver(): SandboxDriver {
     async start(opts: StartOptions) {
       const existing = await this.find(opts.sessionId);
       if (existing) return existing;
+      const name = `seedling-${opts.sessionId.slice(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${Date.now().toString(36)}`;
+      // Sandboxes on one bridge reach each other at layer 2, where the host firewall may not look.
+      // Each gets a bridge of its own unless the operator pinned a shared network.
+      let network = env.sandbox.network;
+      if (!network) {
+        await docker.pruneNetworks({ filters: { label: [NETWORK_LABEL] } }).catch(() => {});
+        network = name;
+        await docker.createNetwork({ Name: network, Driver: "bridge", Labels: { [NETWORK_LABEL]: opts.sessionId } });
+      }
       const container = await docker.createContainer({
         Image: env.sandbox.image,
-        name: `seedling-${opts.sessionId.slice(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${Date.now().toString(36)}`,
+        name,
         Labels: { [LABEL]: opts.sessionId },
         Env: Object.entries({ HOME: "/home/candidate", TERM: "xterm-256color", ...opts.env }).map(([k, v]) => `${k}=${v}`),
         WorkingDir: "/workspace",
         HostConfig: {
           ...hardening(env.sandbox.memoryMb),
           Binds: [`${toHostPath(opts.workspace)}:/workspace:rw`, `${toHostPath(opts.agents)}:/agents:rw`, ...(opts.setup ? [`${toHostPath(opts.setup)}:${SETUP_MOUNT}:ro`] : [])],
-          NetworkMode: env.sandbox.network || undefined,
+          NetworkMode: network,
           ExtraHosts: ["host.docker.internal:host-gateway"],
           AutoRemove: true,
         },
