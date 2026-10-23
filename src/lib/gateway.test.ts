@@ -122,6 +122,19 @@ describe("gateway budget", () => {
     expect(res.status).toBe(200);
   });
 
+  it("prices the prompt as cached only when the request asks for caching", async () => {
+    const { sessionId, token } = await newPass(5);
+    const { eq, sql } = await import("drizzle-orm");
+    await dbm.db.update(dbm.schema.passes).set({ spentUsd: sql`4.9` }).where(eq(dbm.schema.passes.sessionId, sessionId));
+    const pass = await dbm.db.query.passes.findFirst({ where: eq(dbm.schema.passes.sessionId, sessionId) });
+    gateway.ledger.notePrompt(pass!.id, 200_000);
+    const text = "x".repeat(450_000);
+    const uncached = await call(token, { max_tokens: 4000, messages: [{ role: "user", content: text }] });
+    expect(uncached.status).toBe(429);
+    const cached = await call(token, { max_tokens: 4000, messages: [{ role: "user", content: [{ type: "text", text, cache_control: { type: "ephemeral" } }] }] });
+    expect(cached.status).toBe(200);
+  });
+
   it("says how much is left when a request does not fit", async () => {
     const { sessionId, token } = await newPass(5);
     const { eq, sql } = await import("drizzle-orm");
