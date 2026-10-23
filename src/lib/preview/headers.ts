@@ -39,3 +39,13 @@ export function safePath(raw: string) {
   if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return `/${value.replace(/^[/\\]+/, "")}`;
   return value;
 }
+
+// Every session's preview shares one origin, so a service worker one candidate registers would
+// outlive the tab and answer for the next session the interviewer opens.
+export function isServiceWorkerScript(headers: Record<string, string | string[] | undefined>) {
+  return headers["service-worker"] === "script";
+}
+
+export function clearSiteDataOnSwitch(previousSession: string | null | undefined, nextSession: string) {
+  return previousSession && previousSession !== nextSession ? '"cache", "storage"' : null;
+}

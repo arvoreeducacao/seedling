@@ -10,7 +10,7 @@ import { PREVIEW_COOKIE, passLifetime, previewPortAllowed, signer } from "@/lib/
 import { BRIDGE_PATH, bridgeScript, injectBridge } from "@/lib/preview/bridge";
 import { mimeOf } from "@/lib/preview/mime";
 import { OutsideError, readInside, statInside } from "@/lib/safe-path";
-import { forwardedCookie, rewriteLocation, rewriteSetCookie, safePath, withoutFrameAncestors } from "@/lib/preview/headers";
+import { clearSiteDataOnSwitch, forwardedCookie, isServiceWorkerScript, rewriteLocation, rewriteSetCookie, safePath, withoutFrameAncestors } from "@/lib/preview/headers";
 import { i18nFor, pickLocale, type T } from "@/lib/i18n";
 
 const previewHost = env.previewOrigin ? new URL(env.previewOrigin).host : "";
@@ -212,7 +212,10 @@ async function enter(req: http.IncomingMessage, res: http.ServerResponse) {
   const lifetime = passLifetime(remainingMs(found.session));
   const pass = signer().sign({ kind: "pass", session: ticket.session, port, expires: Date.now() + lifetime });
   const attributes = ["Path=/", "HttpOnly", `Max-Age=${Math.floor(lifetime / 1000)}`, secure ? "SameSite=None; Secure; Partitioned" : "SameSite=Lax"];
-  res.writeHead(302, { ...baseHeaders(), location: safePath(url.searchParams.get("path") ?? "/"), "set-cookie": `${PREVIEW_COOKIE}=${pass}; ${attributes.join("; ")}` });
+  const headers: http.OutgoingHttpHeaders = { ...baseHeaders(), location: safePath(url.searchParams.get("path") ?? "/"), "set-cookie": `${PREVIEW_COOKIE}=${pass}; ${attributes.join("; ")}` };
+  const clear = clearSiteDataOnSwitch(signer().verify(cookieOf(req, PREVIEW_COOKIE), "pass")?.session, ticket.session);
+  if (clear) headers["clear-site-data"] = clear;
+  res.writeHead(302, headers);
   res.end();
 }
 
@@ -226,6 +229,7 @@ export async function handlePreview(req: http.IncomingMessage, res: http.ServerR
       res.end(bridgeScript(env.url));
       return;
     }
+    if (isServiceWorkerScript(req.headers)) return notice(res, 403, t("server.previewNoServiceWorker"), pathname);
     const pass = signer().verify(cookieOf(req, PREVIEW_COOKIE), "pass");
     if (!pass) return notice(res, 401, t("server.previewNoPassTitle"), t("server.previewNoPassDetail"));
     const found = await resolveSession(pass.session);
