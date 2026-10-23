@@ -8,6 +8,7 @@ import { Select } from "@/components/select";
 import { Segmented } from "@/components/segmented";
 import { levelLabel } from "@/lib/format";
 import { db, schema } from "@/lib/db";
+import { WARNING_CHECKS } from "@/lib/db/schema";
 import { renderMarkdown } from "@/lib/markdown";
 import { checkDetail, checkTitle } from "@/lib/checks";
 import { getI18n } from "@/lib/i18n/server";
@@ -155,9 +156,9 @@ export default async function ChallengePage({ params, searchParams }: { params: 
               {!checking && challenge.checks.length === 0 && <div className="faint">{t("challenges.noChecks")}</div>}
               {challenge.checks.map((check) => (
                 <div key={check.key} style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: check.ok ? "var(--ok)" : check.key === "statement-leak" ? "var(--warn)" : "var(--err)", marginTop: 2, display: "flex" }}>{check.ok ? <IconCheck size={14} /> : <IconAlert size={14} />}</span>
+                  <span style={{ color: check.ok ? "var(--ok)" : WARNING_CHECKS.includes(check.key) ? "var(--warn)" : "var(--err)", marginTop: 2, display: "flex" }}>{check.ok ? <IconCheck size={14} /> : <IconAlert size={14} />}</span>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ color: check.ok ? "var(--text)" : check.key === "statement-leak" ? "var(--warn)" : "#ff8a8e" }}>{checkTitle(t, check)}</div>
+                    <div style={{ color: check.ok ? "var(--text)" : WARNING_CHECKS.includes(check.key) ? "var(--warn)" : "#ff8a8e" }}>{checkTitle(t, check)}</div>
                     <div className="faint" style={{ fontSize: 11.5, marginTop: 2, lineHeight: 1.5 }}>{checkDetail(t, check)}</div>
                   </div>
                 </div>

@@ -59,10 +59,12 @@ export const challenges = sqliteTable("challenges", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
 });
 
+export const WARNING_CHECKS: readonly string[] = ["statement-leak", "loose-answers"];
+
 export type ChallengeCheckMessage = { key: string; params?: Record<string, string | number> };
 
 export type ChallengeCheck = {
-  key: "reference-passes" | "starter-fails" | "no-secrets" | "statement-leak";
+  key: "reference-passes" | "starter-fails" | "no-secrets" | "statement-leak" | "loose-answers";
   ok: boolean;
   title?: string;
   detail?: string;
