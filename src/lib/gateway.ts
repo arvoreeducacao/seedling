@@ -218,7 +218,8 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
     const pass = await db.query.passes.findFirst({ where: eq(schema.passes.id, check.pass.id) });
     if (!pass || pass.revokedAt) return { ok: false as const, error: errorResponse(403, t, "pass.turnedOff") };
     if (ledger.inflight(pass.id) >= limits.maxInflight) return { ok: false as const, error: errorResponse(429, t, "pass.tooManyParallel", { max: limits.maxInflight }) };
-    const inputUsd = inputCost(price, inputTokens, ledger.cachedPrompt(pass.id));
+    const cached = raw.includes('"cache_control"') ? ledger.cachedPrompt(pass.id) : 0;
+    const inputUsd = inputCost(price, inputTokens, cached);
     const allowance = outputAllowance({ budgetUsd: pass.budgetUsd, spentUsd: pass.spentUsd, reservedUsd: ledger.reserved(pass.id), inputUsd, price });
     const requested = Number.isFinite(parsed.max_tokens) && (parsed.max_tokens as number) > 0 ? (parsed.max_tokens as number) : limits.maxOutputTokens;
     if (allowance < Math.min(requested, MIN_OUTPUT_TOKENS)) {
