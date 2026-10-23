@@ -24,6 +24,7 @@ export const server: Translation<typeof En> = {
   "pass.turnedOff": "o acesso ao Claude nesta sessão foi desligado",
   "pass.timeOver": "o tempo da sessão acabou",
   "pass.capReached": "o teto de gastos da sessão foi atingido",
+  "pass.capNotEnoughLeft": "este pedido precisa de mais do que os US$ {left} que restam no orçamento da sessão; comece uma conversa nova (/clear) ou use /compact para mandar menos contexto",
   "pass.monthlyCap": "o teto mensal da organização foi atingido",
   "pass.noServerKey": "o servidor não tem ANTHROPIC_API_KEY",
   "pass.tooManyParallel": "requisições paralelas demais nesta sessão (limite {max})",

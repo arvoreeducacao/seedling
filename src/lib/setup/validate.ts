@@ -3,6 +3,7 @@ import { AppError } from "@/lib/i18n";
 
 export const SETUP_LIMITS = {
   totalBytes: 2 * 1024 * 1024,
+  zipBytes: 10 * 1024 * 1024,
   files: 50,
   fileBytes: 512 * 1024,
   skills: 20,
@@ -10,7 +11,7 @@ export const SETUP_LIMITS = {
   mcpServers: 10,
   headers: 10,
   headerValueBytes: 4096,
-  zipEntries: 200,
+  zipEntries: 5000,
 };
 
 export const RESERVED_MCP_NAMES = new Set(["playwright"]);
@@ -20,7 +21,7 @@ export class SetupError extends AppError {}
 const SKILL_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MCP_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,128}$/;
-const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,127}$/;
+const SEGMENT = /^[\p{L}\p{N}_(\[@+][\p{L}\p{M}\p{N}._ ()\[\]@+,'&~=-]{0,127}$/u;
 
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
@@ -34,6 +35,8 @@ export function validSkillName(name: string) {
 
 export function skillNameFrom(raw: string) {
   return raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/-+/g, "-")
@@ -44,7 +47,7 @@ export function skillNameFrom(raw: string) {
 export function cleanRelativePath(raw: string) {
   if (raw.includes("\0") || raw.includes("\\")) throw new SetupError("setup.pathInvalid", { path: printable(raw) });
   if (raw.startsWith("/") || /^[A-Za-z]:/.test(raw)) throw new SetupError("setup.pathAbsolute", { path: printable(raw) });
-  const parts = raw.split("/").filter((p) => p !== "" && p !== ".");
+  const parts = raw.normalize("NFC").split("/").filter((p) => p !== "" && p !== ".");
   if (!parts.length) throw new SetupError("setup.pathEmpty");
   for (const part of parts) {
     if (part === "..") throw new SetupError("setup.pathOutside", { path: printable(raw) });
@@ -174,7 +177,7 @@ export function setupTotals(input: { skills: SetupSkill[]; claudeMd: string | nu
   const bytes =
     input.skills.reduce((n, s) => n + s.files.reduce((m, f) => m + byteLength(f.path) + byteLength(f.content), 0), 0) +
     (input.claudeMd ? byteLength(input.claudeMd) : 0) +
-    byteLength(JSON.stringify(input.mcpServers));
+    (input.mcpServers.length ? byteLength(JSON.stringify(input.mcpServers)) : 0);
   return { files, bytes };
 }
 

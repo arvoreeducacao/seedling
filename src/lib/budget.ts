@@ -56,8 +56,19 @@ export function filterBetas(header: string | null) {
   return kept.length ? kept.join(",") : null;
 }
 
-export function estimateInputTokens(rawBody: string) {
-  return Math.ceil(Buffer.byteLength(rawBody, "utf8") / 3);
+const IMAGE_TOKENS = 1_600;
+
+// Base64 media is billed by what it shows, not by its size: a 1 MB screenshot is ~1.6k tokens, not 330k.
+export function estimateInputTokens(body: unknown) {
+  let media = 0;
+  const text = JSON.stringify(body, (_key, value) => {
+    if (value && typeof value === "object" && !Array.isArray(value) && value.type === "base64" && typeof value.data === "string") {
+      media += String(value.media_type ?? "").startsWith("image/") ? IMAGE_TOKENS : Math.ceil((value.data.length * 0.75) / 3);
+      return { ...value, data: "" };
+    }
+    return value;
+  });
+  return Math.ceil(Buffer.byteLength(text ?? "", "utf8") / 3) + media;
 }
 
 export function estimateOutputTokens(streamedChars: number) {
@@ -74,22 +85,32 @@ export function billedUsage(reported: Usage, complete: boolean, streamedChars: n
 
 export type Price = { input: number; output: number };
 
-export function reservation(price: Price, inputTokens: number, outputTokens: number) {
-  return (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
+// Claude Code caches its prompt, so the part already sent in the last few minutes is billed at the cache-read rate.
+export function inputCost(price: Price, inputTokens: number, cachedTokens = 0) {
+  const cached = Math.min(inputTokens, cachedTokens);
+  return ((cached * 0.1 + (inputTokens - cached) * 1.25) * price.input) / 1_000_000;
 }
 
-export function outputAllowance(input: { budgetUsd: number; spentUsd: number; reservedUsd: number; inputTokens: number; price: Price }) {
-  const left = input.budgetUsd - input.spentUsd - input.reservedUsd - reservation(input.price, input.inputTokens, 0);
+export function outputCost(price: Price, outputTokens: number) {
+  return (outputTokens * price.output) / 1_000_000;
+}
+
+export function outputAllowance(input: { budgetUsd: number; spentUsd: number; reservedUsd: number; inputUsd: number; price: Price }) {
+  const left = input.budgetUsd - input.spentUsd - input.reservedUsd - input.inputUsd;
   if (left <= 0) return 0;
   return Math.floor((left * 1_000_000) / input.price.output);
 }
 
 type Hold = { id: number; passId: string; usd: number; at: number };
+type Prompt = { tokens: number; at: number };
+
+const CACHE_TTL_MS = 5 * 60_000;
 
 export class Ledger {
   private holds = new Map<number, Hold>();
   private seq = 0;
   private locks = new Map<string, Promise<unknown>>();
+  private prompts = new Map<string, Prompt[]>();
 
   constructor(private readonly staleMs = 30 * 60_000) {}
 
@@ -130,5 +151,17 @@ export class Ledger {
 
   release(id: number) {
     this.holds.delete(id);
+  }
+
+  notePrompt(passId: string, tokens: number, now = Date.now()) {
+    if (!(tokens > 0)) return;
+    const fresh = (this.prompts.get(passId) ?? []).filter((p) => now - p.at < CACHE_TTL_MS);
+    this.prompts.set(passId, [...fresh.slice(-19), { tokens, at: now }]);
+  }
+
+  cachedPrompt(passId: string, now = Date.now()) {
+    let max = 0;
+    for (const p of this.prompts.get(passId) ?? []) if (now - p.at < CACHE_TTL_MS && p.tokens > max) max = p.tokens;
+    return max;
   }
 }

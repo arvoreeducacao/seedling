@@ -112,6 +112,25 @@ describe("gateway budget", () => {
     await settle();
   });
 
+  it("lets a long Claude Code session with screenshots keep going with budget left", async () => {
+    const { sessionId, token } = await newPass(5);
+    const { eq, sql } = await import("drizzle-orm");
+    await dbm.db.update(dbm.schema.passes).set({ spentUsd: sql`2.9` }).where(eq(dbm.schema.passes.sessionId, sessionId));
+    const screenshot = { type: "image", source: { type: "base64", media_type: "image/png", data: "A".repeat(800_000) } };
+    const content = [{ type: "text", text: "x".repeat(450_000) }, ...Array.from({ length: 6 }, () => ({ type: "tool_result", tool_use_id: "t", content: [screenshot] }))];
+    const res = await call(token, { max_tokens: 8000, messages: [{ role: "user", content }] });
+    expect(res.status).toBe(200);
+  });
+
+  it("says how much is left when a request does not fit", async () => {
+    const { sessionId, token } = await newPass(5);
+    const { eq, sql } = await import("drizzle-orm");
+    await dbm.db.update(dbm.schema.passes).set({ spentUsd: sql`4.9` }).where(eq(dbm.schema.passes.sessionId, sessionId));
+    const res = await call(token, { max_tokens: 8000, messages: [{ role: "user", content: "x".repeat(600_000) }] });
+    expect(res.status).toBe(429);
+    expect((await res.json()).error.message).toContain("0.10");
+  });
+
   it("refuses a request the budget left cannot cover once in-flight work is counted", async () => {
     const { token } = await newPass(0.05);
     const first = await call(token, { max_tokens: 4000, stream: true });

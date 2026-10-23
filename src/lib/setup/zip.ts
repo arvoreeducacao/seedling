@@ -13,6 +13,15 @@ function ignored(path: string) {
   return parts[0] === "__MACOSX" || base === ".DS_Store" || base === "Thumbs.db" || base.startsWith("._");
 }
 
+const SKIPPED_DIRS = new Set(["node_modules", "__pycache__"]);
+
+function hiddenPart(path: string) {
+  const parts = path.split("/");
+  const at = parts.findIndex((p) => (p.startsWith(".") && p !== "." && p !== "..") || SKIPPED_DIRS.has(p));
+  if (at < 0) return null;
+  return at === parts.length - 1 ? path : `${parts.slice(0, at + 1).join("/")}/`;
+}
+
 function isSymlink(attr: number) {
   const mode = (attr >>> 16) & S_IFMT;
   return mode === S_IFLNK;
@@ -23,10 +32,12 @@ function isOddType(attr: number) {
   return mode !== 0 && mode !== S_IFREG && mode !== 0o040000;
 }
 
-export type ZipResult = { skills: SetupSkill[]; ignored: string[] };
+export type SkipReason = "hidden" | "binary" | "tooBig" | "outside";
+export type Skipped = { path: string; reason: SkipReason };
+export type ZipResult = { skills: SetupSkill[]; skipped: Skipped[] };
 
 export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
-  if (buffer.length > SETUP_LIMITS.totalBytes) throw new SetupError("setup.zipTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
+  if (buffer.length > SETUP_LIMITS.zipBytes) throw new SetupError("setup.zipTooBig", { mb: SETUP_LIMITS.zipBytes / 1024 / 1024 });
   let zip: AdmZip;
   try {
     zip = new AdmZip(buffer);
@@ -41,17 +52,28 @@ export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
   }
   if (entries.length > SETUP_LIMITS.zipEntries) throw new SetupError("setup.zipTooManyEntries", { entries: entries.length, max: SETUP_LIMITS.zipEntries });
   const files: { path: string; content: string }[] = [];
+  const skipped = new Map<string, SkipReason>();
+  const isSkillMd = (path: string) => path === "SKILL.md" || path.endsWith("/SKILL.md");
   let declared = 0;
   for (const entry of entries) {
-    const raw = entry.entryName;
+    const raw = entry.entryName.normalize("NFC");
     if (ignored(raw.replace(/\/$/, ""))) continue;
+    const hidden = hiddenPart(raw.replace(/\/$/, ""));
+    if (hidden) {
+      if (!skipped.has(hidden)) skipped.set(hidden, "hidden");
+      continue;
+    }
     if (isSymlink(entry.attr)) throw new SetupError("setup.zipSymlink", { path: printable(raw) });
     if ((entry.header.flags & ENCRYPTED) !== 0) throw new SetupError("setup.zipEncrypted");
     const path = cleanRelativePath(raw);
     if (entry.isDirectory) continue;
     if (isOddType(entry.attr)) throw new SetupError("setup.zipOddFile", { path: printable(raw) });
     const size = entry.header.size;
-    if (size > SETUP_LIMITS.fileBytes) throw new SetupError("setup.fileTooBig", { path, kb: SETUP_LIMITS.fileBytes / 1024 });
+    if (size > SETUP_LIMITS.fileBytes) {
+      if (isSkillMd(path)) throw new SetupError("setup.fileTooBig", { path, kb: SETUP_LIMITS.fileBytes / 1024 });
+      skipped.set(path, "tooBig");
+      continue;
+    }
     declared += size;
     if (declared > SETUP_LIMITS.totalBytes) throw new SetupError("setup.zipUnpacksTooBig", { mb: SETUP_LIMITS.totalBytes / 1024 / 1024 });
     if (files.length >= SETUP_LIMITS.files) throw new SetupError("setup.zipTooManyFiles", { max: SETUP_LIMITS.files });
@@ -62,7 +84,15 @@ export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
       throw new SetupError("setup.zipUnreadable", { path });
     }
     if (data.length !== size || data.length > SETUP_LIMITS.fileBytes) throw new SetupError("setup.zipSizeMismatch", { path });
-    files.push({ path, content: decodeText(data, `"${path}"`) });
+    let content: string;
+    try {
+      content = decodeText(data, `"${path}"`);
+    } catch (error) {
+      if (isSkillMd(path)) throw error;
+      skipped.set(path, "binary");
+      continue;
+    }
+    files.push({ path, content });
   }
   const roots = files
     .filter((f) => f.path === "SKILL.md" || f.path.endsWith("/SKILL.md"))
@@ -86,5 +116,6 @@ export function readSkillZip(buffer: Buffer, archiveName = "skill"): ZipResult {
     skills.push(checkSkill({ name, files: own }));
   }
   const covered = (path: string) => roots.some((root) => root === "" || path.startsWith(`${root}/`));
-  return { skills, ignored: files.filter((f) => !covered(f.path)).map((f) => f.path) };
+  for (const file of files) if (!covered(file.path)) skipped.set(file.path, "outside");
+  return { skills, skipped: [...skipped].map(([path, reason]) => ({ path, reason })) };
 }

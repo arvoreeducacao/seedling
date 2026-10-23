@@ -3,7 +3,7 @@ import { db, ready, schema } from "@/lib/db";
 import { hashToken, newId, newToken } from "@/lib/crypto";
 import { env } from "@/lib/env";
 import { costOf, priceOf, type Usage } from "@/lib/pricing";
-import { Ledger, MIN_OUTPUT_TOKENS, clampBody, estimateInputTokens, billedUsage, filterBetas, outputAllowance, reservation, type MessagesBody } from "@/lib/budget";
+import { Ledger, MIN_OUTPUT_TOKENS, clampBody, estimateInputTokens, billedUsage, filterBetas, inputCost, outputAllowance, outputCost, type MessagesBody } from "@/lib/budget";
 import { AGENT_HEADER, MAIN_AGENT, validAgentKey } from "@/lib/agent-keys";
 import { defaultLocale, i18nFor, type Key, type Locale, type Params, type T } from "@/lib/i18n";
 
@@ -212,17 +212,21 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return errorResponse(400, t, "error.badBody");
   const model = upstreamModel(check.session.model);
   const price = priceOf(model);
-  const inputTokens = estimateInputTokens(raw);
+  const inputTokens = estimateInputTokens(parsed);
   const limits = env.ai;
   const admitted = await ledger.lock(check.pass.id, async () => {
     const pass = await db.query.passes.findFirst({ where: eq(schema.passes.id, check.pass.id) });
     if (!pass || pass.revokedAt) return { ok: false as const, error: errorResponse(403, t, "pass.turnedOff") };
     if (ledger.inflight(pass.id) >= limits.maxInflight) return { ok: false as const, error: errorResponse(429, t, "pass.tooManyParallel", { max: limits.maxInflight }) };
-    const allowance = outputAllowance({ budgetUsd: pass.budgetUsd, spentUsd: pass.spentUsd, reservedUsd: ledger.reserved(pass.id), inputTokens, price });
+    const inputUsd = inputCost(price, inputTokens, ledger.cachedPrompt(pass.id));
+    const allowance = outputAllowance({ budgetUsd: pass.budgetUsd, spentUsd: pass.spentUsd, reservedUsd: ledger.reserved(pass.id), inputUsd, price });
     const requested = Number.isFinite(parsed.max_tokens) && (parsed.max_tokens as number) > 0 ? (parsed.max_tokens as number) : limits.maxOutputTokens;
-    if (allowance < Math.min(requested, MIN_OUTPUT_TOKENS)) return { ok: false as const, error: errorResponse(429, t, "pass.capReached") };
+    if (allowance < Math.min(requested, MIN_OUTPUT_TOKENS)) {
+      const left = Math.max(0, pass.budgetUsd - pass.spentUsd);
+      return { ok: false as const, error: left > 0.01 ? errorResponse(429, t, "pass.capNotEnoughLeft", { left: left.toFixed(2) }) : errorResponse(429, t, "pass.capReached") };
+    }
     const body = { ...clampBody(parsed, limits, allowance), model };
-    const hold = ledger.hold(pass.id, reservation(price, inputTokens, body.max_tokens ?? 0));
+    const hold = ledger.hold(pass.id, inputUsd + outputCost(price, body.max_tokens ?? 0));
     return { ok: true as const, body, hold };
   });
   if (!admitted.ok) return admitted.error;
@@ -239,8 +243,11 @@ export async function forwardMessages(req: Request, source: "panel" | "terminal"
   else headers.delete("anthropic-beta");
   if (!headers.has("anthropic-version")) headers.set("anthropic-version", "2023-06-01");
   headers.set("content-type", "application/json");
-  const settle = (status: number, collected: Collected) =>
-    ledger.lock(check.pass.id, () => record(check.pass, source, body, status, collected, agentKey)).finally(() => ledger.release(hold));
+  const settle = (status: number, collected: Collected) => {
+    const u = collected.usage;
+    ledger.notePrompt(check.pass.id, (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0));
+    return ledger.lock(check.pass.id, () => record(check.pass, source, body, status, collected, agentKey)).finally(() => ledger.release(hold));
+  };
   const abort = new AbortController();
   let upstream: Response;
   try {

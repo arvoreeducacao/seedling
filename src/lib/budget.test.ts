@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Ledger, billedUsage, clampBody, clampEffort, filterBetas, outputAllowance, reservation, type Limits } from "./budget";
+import { Ledger, billedUsage, clampBody, clampEffort, estimateInputTokens, filterBetas, inputCost, outputAllowance, outputCost, type Limits } from "./budget";
 
 const limits: Limits = { maxOutputTokens: 32_000, maxEffort: "high", maxThinkingTokens: 16_000 };
 const price = { input: 4, output: 20 };
@@ -36,11 +36,30 @@ describe("request clamping", () => {
 
 describe("budget reservation", () => {
   it("counts in-flight reservations against what is left", () => {
-    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0, reservedUsd: 0, inputTokens: 0, price })).toBe(50_000);
-    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0.5, reservedUsd: 0.25, inputTokens: 0, price })).toBe(12_500);
-    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0.5, reservedUsd: 0.6, inputTokens: 0, price })).toBe(0);
-    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0, reservedUsd: 0, inputTokens: 250_000, price })).toBe(0);
-    expect(reservation(price, 1000, 1000)).toBeCloseTo(0.024);
+    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0, reservedUsd: 0, inputUsd: 0, price })).toBe(50_000);
+    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0.5, reservedUsd: 0.25, inputUsd: 0, price })).toBe(12_500);
+    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0.5, reservedUsd: 0.6, inputUsd: 0, price })).toBe(0);
+    expect(outputAllowance({ budgetUsd: 1, spentUsd: 0, reservedUsd: 0, inputUsd: inputCost(price, 250_000), price })).toBe(0);
+    expect(outputCost(price, 1000)).toBeCloseTo(0.02);
+  });
+
+  it("prices the prompt prefix seen in the last minutes at the cache-read rate", () => {
+    expect(inputCost(price, 100_000)).toBeCloseTo(0.5);
+    expect(inputCost(price, 100_000, 90_000)).toBeCloseTo(0.086);
+    expect(inputCost(price, 100_000, 500_000)).toBeCloseTo(0.04);
+    const ledger = new Ledger();
+    ledger.notePrompt("p", 160_000, 0);
+    ledger.notePrompt("p", 25_000, 1000);
+    expect(ledger.cachedPrompt("p", 2000)).toBe(160_000);
+    expect(ledger.cachedPrompt("p", 6 * 60_000)).toBe(0);
+    expect(ledger.cachedPrompt("other", 2000)).toBe(0);
+  });
+
+  it("counts a screenshot as an image, not as its base64 size", () => {
+    const screenshot = { type: "image", source: { type: "base64", media_type: "image/png", data: "A".repeat(1_500_000) } };
+    const body = { messages: [{ role: "user", content: [{ type: "tool_result", content: [screenshot] }] }] };
+    expect(estimateInputTokens(body)).toBeLessThan(2_000);
+    expect(estimateInputTokens({ messages: [{ role: "user", content: "x".repeat(3000) }] })).toBeGreaterThanOrEqual(1000);
   });
 
   it("bills an aborted stream for what it consumed", () => {
