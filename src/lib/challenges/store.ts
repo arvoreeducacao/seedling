@@ -7,6 +7,7 @@ import { newId } from "@/lib/crypto";
 import { dataPath } from "@/lib/env";
 import { sandbox } from "@/lib/sandbox";
 import { copyTreeNoLinks, makeTreeWritable } from "@/lib/safe-path";
+import { resetHarness } from "./grading";
 import { AppError, type Key } from "@/lib/i18n";
 import type { ChallengeCheck } from "@/lib/db/schema";
 import {
@@ -199,16 +200,24 @@ async function scratch(label: string) {
   return dir;
 }
 
-export async function runHidden(challengeId: string, workspace: string) {
+export async function runHidden(challengeId: string, workspace: string, withReference = false) {
   const challenge = await db.query.challenges.findFirst({ where: eq(schema.challenges.id, challengeId) });
   if (!challenge?.hiddenTestCommand) return null;
   const dir = await scratch("grade");
   try {
     await copyTreeNoLinks(workspace, dir);
+    const files = await listFiles(challengeId);
+    const root = challengeDir(challengeId);
+    const harness: FileRole[] = withReference ? ["statement", "visible", "visible-test", "reference"] : ["statement", "visible", "visible-test"];
+    const starter = new Map(
+      files.filter((f) => harness.includes(f.role)).map((f) => [f.role === "reference" ? referenceTarget(f.path) : f.path, safeJoin(root, f.path)] as const),
+    );
+    const reset = await resetHarness(dir, starter, files.filter((f) => f.role === "hidden").map((f) => f.path));
     await overlay(challengeId, dir, "hidden");
     await makeTreeWritable(dir);
     const result = await sandbox().runIsolated(dir, challenge.hiddenTestCommand, 180_000);
-    return { ...parseTestCounts(result.output, result.exitCode), ...result };
+    const output = reset.length ? `[seedling] put back as the challenge shipped them before grading: ${reset.join(", ")}\n${result.output}` : result.output;
+    return { ...parseTestCounts(result.output, result.exitCode), ...result, output, reset };
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
@@ -283,7 +292,7 @@ export async function runChecks(challengeId: string) {
         const ref = await scratch("reference");
         await copyForCandidate(challengeId, ref);
         await overlay(challengeId, ref, "reference");
-        const refResult = await runHidden(challengeId, ref);
+        const refResult = await runHidden(challengeId, ref, true);
         await fs.rm(ref, { recursive: true, force: true });
         const allPass = Boolean(refResult && refResult.exitCode === 0 && refResult.passed === refResult.total);
         dynamic.push({

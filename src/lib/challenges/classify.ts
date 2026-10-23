@@ -98,8 +98,9 @@ export function statementLeaks(statementText: string, privatePaths: string[], vi
 }
 
 export function parseTestCounts(output: string, exitCode: number) {
+  // The runner prints its summary last; anything earlier may be the candidate's code printing a fake one.
   const n = (re: RegExp) => {
-    const m = output.match(re);
+    const m = [...output.matchAll(new RegExp(re.source, "g"))].at(-1);
     return m ? Number(m[1]) : null;
   };
   const nodePass = n(/(?:^|\n)\s*(?:#|ℹ)\s*pass\s+(\d+)/);
@@ -115,9 +116,9 @@ export function parseTestCounts(output: string, exitCode: number) {
     const passed = pyPassed ?? 0;
     return { passed, total: passed + (pyFailed ?? 0) + (pyErrors ?? 0) };
   }
-  const jest = output.match(/Tests:\s+(?:(\d+) failed, )?(?:(\d+) skipped, )?(?:(\d+) passed, )?(\d+) total/);
+  const jest = [...output.matchAll(/Tests:\s+(?:(\d+) failed, )?(?:(\d+) skipped, )?(?:(\d+) passed, )?(\d+) total/g)].at(-1);
   if (jest) return { passed: Number(jest[3] ?? 0), total: Number(jest[4]) };
-  const vitest = output.match(/Tests\s+(?:(\d+) failed\s*\|\s*)?(\d+) passed\s*\((\d+)\)/);
+  const vitest = [...output.matchAll(/Tests\s+(?:(\d+) failed\s*\|\s*)?(\d+) passed\s*\((\d+)\)/g)].at(-1);
   if (vitest) return { passed: Number(vitest[2]), total: Number(vitest[3]) };
   return { passed: exitCode === 0 ? 1 : 0, total: 1 };
 }
