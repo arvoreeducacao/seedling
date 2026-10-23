@@ -89,6 +89,7 @@ export const server: Translation<typeof En> = {
   "server.previewExpiredDetail": "Abra a página de novo pelo ambiente.",
   "server.previewInvalidPort": "Porta inválida",
   "server.previewPortClosed": "Esta porta não está disponível",
+  "server.previewNoServiceWorker": "Service workers ficam desligados no preview",
   "server.previewSessionOverTitle": "A sessão não está rodando",
   "server.previewSessionOverDetail": "As páginas abrem só enquanto a sessão está ao vivo.",
   "server.previewNoPassTitle": "Abra esta página pelo ambiente",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forwardedCookie, rewriteLocation, rewriteSetCookie, safePath, withoutFrameAncestors } from "./headers";
+import { clearSiteDataOnSwitch, forwardedCookie, isServiceWorkerScript, rewriteLocation, rewriteSetCookie, safePath, withoutFrameAncestors } from "./headers";
 
 describe("preview headers", () => {
   it("never forwards the preview pass or the app's own cookies to the sandbox", () => {
@@ -32,5 +32,13 @@ describe("preview headers", () => {
     expect(safePath("/\\evil.com")).toBe("/evil.com");
     expect(safePath("https://evil.com")).toBe("/https://evil.com");
     expect(safePath("")).toBe("/");
+  });
+
+  it("refuses service worker scripts and wipes storage when the preview switches session", () => {
+    expect(isServiceWorkerScript({ "service-worker": "script" })).toBe(true);
+    expect(isServiceWorkerScript({ accept: "*/*" })).toBe(false);
+    expect(clearSiteDataOnSwitch("a", "b")).toBe('"cache", "storage"');
+    expect(clearSiteDataOnSwitch("a", "a")).toBeNull();
+    expect(clearSiteDataOnSwitch(undefined, "a")).toBeNull();
   });
 });

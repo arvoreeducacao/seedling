@@ -86,6 +86,7 @@ export const server = {
   "server.previewExpiredDetail": "Open the page again from the workspace.",
   "server.previewInvalidPort": "Invalid port",
   "server.previewPortClosed": "This port is not available",
+  "server.previewNoServiceWorker": "Service workers are turned off in the preview",
   "server.previewSessionOverTitle": "The session is not running",
   "server.previewSessionOverDetail": "Pages open only while the session is live.",
   "server.previewNoPassTitle": "Open this page from the workspace",
