@@ -79,6 +79,7 @@ const eventSentence: Record<string, (d: Record<string, unknown>) => Sentence> = 
   "agent-merge": (d) => ({ key: "event.agentMerge", params: { name: String(d.name), n: fileCount(d), added: Number(d.added ?? 0), removed: Number(d.removed ?? 0) } }),
   "agent-close": (d): Sentence => (!d.merged && fileCount(d) ? { key: "event.agentCloseUnmerged", params: { name: String(d.name), n: fileCount(d) } } : { key: "event.agentClose", params: { name: String(d.name) } }),
   browse: (d) => ({ key: "event.browse", params: { address: String(d.address) } }),
+  "disk-full": (d) => ({ key: "event.diskFull", params: { mb: Number(d.mb) } }),
 };
 
 function eventText({ t }: I18n, kind: string, data: Record<string, unknown>) {

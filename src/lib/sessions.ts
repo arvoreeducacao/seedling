@@ -332,6 +332,8 @@ export async function revokeAi(session: Session, actor: string) {
 
 export async function sweep() {
   await ready();
+  const { guardDisk } = await import("@/lib/disk");
+  await guardDisk().catch((error) => console.error("[seedling] disk guard", error));
   const running = await db.query.sessions.findMany({ where: eq(schema.sessions.status, "running") });
   for (const session of running) {
     if (remainingMs(session) <= 0) {

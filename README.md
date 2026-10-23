@@ -171,7 +171,8 @@ Seedling reads everything from environment variables. Only `BETTER_AUTH_SECRET` 
 | `SEEDLING_SANDBOX_CPUS` | `1` | CPUs per sandbox. |
 | `SEEDLING_SANDBOX_MEMORY_MB` | `2048` | Memory per sandbox. |
 | `SEEDLING_SANDBOX_PIDS` | `1024` | Process limit per sandbox. |
-| `SEEDLING_SANDBOX_WORKSPACE_MAX_MB` | `200` | Workspace size limit. |
+| `SEEDLING_SANDBOX_WORKSPACE_MAX_MB` | `200` | Workspace size limit for saves from the editor. |
+| `SEEDLING_DISK_RESERVE_MB` | `2048` | Free space kept on the data volume. Below it, the largest running sandbox is stopped. |
 | `SEEDLING_SANDBOX_MAX_CONCURRENT` | `2` | Sandboxes running at the same time. |
 | `SEEDLING_MAX_AGENTS` | `4` | Claude Code agents per session, counting the main one. |
 | `SEEDLING_SETUP_DISABLE` | | Comma-separated setup the candidate may not bring, overriding the prep kit: `skills`, `claude-md`, `mcp` or `all`. |

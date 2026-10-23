@@ -339,5 +339,6 @@ export const workspace = {
   "event.agentClose": "closed {name}",
   "event.agentCloseUnmerged": "closed {name} without merging {n} changed file|closed {name} without merging {n} changed files",
   "event.browse": "opened {address} in the browser",
+  "event.diskFull": "sandbox stopped because the server disk was almost full ({mb} MB in this session)",
   "event.unknown": "{kind}",
 } as const;
