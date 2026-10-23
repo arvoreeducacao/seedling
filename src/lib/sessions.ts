@@ -174,11 +174,12 @@ export async function startSession(session: Session) {
   const startedAt = new Date();
   const updated = { ...session, status: "running" as const, startedAt, candidateCookieHash: hashToken(cookie) };
   const expiresAt = deadline(updated)!;
-  const pass = await issuePass(session.id, expiresAt, session.budgetUsd);
-  await db
+  const claimed = await db
     .update(schema.sessions)
     .set({ status: "running", startedAt, candidateCookieHash: hashToken(cookie) })
     .where(and(eq(schema.sessions.id, session.id), eq(schema.sessions.status, "invited")));
+  if (!claimed.rowsAffected) throw new AppError("server.alreadyStarted");
+  const pass = await issuePass(session.id, expiresAt, session.budgetUsd);
   await db
     .update(schema.attempts)
     .set({ startedAt })
