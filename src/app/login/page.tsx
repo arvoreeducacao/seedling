@@ -7,6 +7,8 @@ import { enabledProviders } from "@/lib/better-auth";
 import { LoginForm } from "./login-form";
 import { requestAccess } from "./actions";
 import { findInvite } from "@/lib/admin-invites";
+import { findPasswordReset } from "@/lib/password-reset";
+import { ResetForm } from "./reset-form";
 import { mailConfigured } from "@/lib/mail";
 import { getI18n } from "@/lib/i18n/server";
 import type { T } from "@/lib/i18n";
@@ -24,13 +26,14 @@ function signInError(t: T, code: string | string[]) {
   return t("server.loginFailed");
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ requested?: string; error?: string | string[]; invite?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ requested?: string; error?: string | string[]; invite?: string; reset?: string; password?: string }> }) {
   const { t } = await getI18n();
   const user = await currentUser();
   if (user && (await isAdminEmail(user.email))) redirect("/");
   const params = await searchParams;
   const providers = enabledProviders();
   const invite = typeof params.invite === "string" ? await findInvite(params.invite) : null;
+  const reset = typeof params.reset === "string" ? await findPasswordReset(params.reset) : null;
   const [beforeEmail, afterEmail] = t("server.loginNotOnList").split("{email}");
   return (
     <main className="stage" style={{ overflowX: "clip" }}>
@@ -77,7 +80,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               <div className="stage-panel">
                 {params.error && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{signInError(t, params.error)}</div>}
                 {params.invite && !invite && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{t("server.loginInviteInvalid")}</div>}
-                <LoginForm google={providers.google} github={providers.github} invite={invite ? { token: params.invite!, email: invite.email } : null} verifyByEmail={mailConfigured()} />
+                {params.reset && !reset && <div className="notice notice-err" role="alert" style={{ marginBottom: 16 }}>{t("server.loginResetInvalid")}</div>}
+                {params.password === "changed" && <div className="notice notice-accent" role="status" style={{ marginBottom: 16 }}>{t("server.loginResetDone")}</div>}
+                {reset ? <ResetForm token={params.reset!} email={reset.email} /> : <LoginForm google={providers.google} github={providers.github} invite={invite ? { token: params.invite!, email: invite.email } : null} verifyByEmail={mailConfigured()} />}
               </div>
             </Stage>
           </>

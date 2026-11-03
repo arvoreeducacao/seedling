@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { audit, requireAdmin } from "@/lib/auth";
 import { db, schema } from "@/lib/db";
 import { createAdminInvite } from "@/lib/admin-invites";
+import { createPasswordReset } from "@/lib/password-reset";
 import { domainAllowed } from "@/lib/admins";
 import { getI18n } from "@/lib/i18n/server";
 
@@ -22,6 +23,17 @@ export async function inviteAdmin(_prev: AdminInviteResult | null, formData: For
   await audit(admin.email, "settings.audit.inviteCreated", email);
   revalidatePath("/settings");
   return { ok: true, email, url };
+}
+
+export async function passwordLink(_prev: AdminInviteResult | null, formData: FormData): Promise<AdminInviteResult> {
+  const admin = await requireAdmin();
+  const { t } = await getI18n();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const reset = await createPasswordReset(email);
+  if (!reset) return { ok: false, error: t("settings.admins.noAccountToReset") };
+  await audit(admin.email, "settings.audit.passwordLinkCreated", email);
+  revalidatePath("/settings");
+  return { ok: true, email, url: reset.url };
 }
 
 export async function addAdmin(formData: FormData) {

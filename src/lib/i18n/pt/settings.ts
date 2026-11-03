@@ -80,6 +80,7 @@ export const settings: Translation<typeof En> = {
   "settings.admins.emailPlaceholder": "colega@empresa.com",
   "settings.admins.linkNotice": "Envie este link para {email}. Ele funciona uma vez, por 7 dias, e aparece só agora.",
   "settings.admins.copyLink": "Copiar link",
+  "settings.admins.noAccountToReset": "Esse admin ainda não tem conta. Mande um link de convite.",
   "settings.admins.badEmail": "Digite um e-mail válido.",
   "settings.admins.badDomain": "Esse domínio de e-mail não é permitido neste ambiente.",
 
@@ -190,4 +191,7 @@ export const settings: Translation<typeof En> = {
   "kit.audit.imported": "importou um kit de preparação",
   "kit.audit.reset": "voltou o kit de preparação ao padrão",
   "kit.audit.target": "kit de preparação",
+  "settings.admins.passwordLink": "Link de nova senha",
+  "settings.admins.passwordNotice": "Envie este link para a pessoa criar uma senha nova. Ele funciona uma vez, por 24 horas, e aparece só agora.",
+  "settings.audit.passwordLinkCreated": "criou link de nova senha",
 };

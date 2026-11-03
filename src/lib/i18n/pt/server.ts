@@ -113,6 +113,11 @@ export const server: Translation<typeof En> = {
   "server.loginHeadline": "Contrate quem constrói com IA",
   "server.loginSub": "Entrevista de código ao vivo, com o Claude na sala. Entre para conduzir.",
   "server.loginInviteInvalid": "Este link de convite não vale mais. Peça um novo a um admin.",
+  "server.loginResetInvalid": "Este link de nova senha não vale mais. Peça um novo a um admin.",
+  "server.loginResetTitle": "Crie sua senha nova",
+  "server.loginResetSave": "Salvar senha",
+  "server.loginResetSaving": "Salvando…",
+  "server.loginResetDone": "Senha trocada. Entre com a senha nova.",
   "server.loginCandidateHint": "Vai fazer a entrevista? Abra o link do e-mail de convite. Não precisa de conta.",
 
   "server.authBadCredentials": "O e-mail e a senha não conferem.",
