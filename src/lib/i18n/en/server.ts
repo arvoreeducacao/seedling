@@ -110,6 +110,11 @@ export const server = {
   "server.loginHeadline": "Hire people who build with AI",
   "server.loginSub": "Live coding interviews with Claude in the room. Sign in to run them.",
   "server.loginInviteInvalid": "This invite link is no longer valid. Ask an admin for a new one.",
+  "server.loginResetInvalid": "This new password link is no longer valid. Ask an admin for a new one.",
+  "server.loginResetTitle": "Create your new password",
+  "server.loginResetSave": "Save password",
+  "server.loginResetSaving": "Saving…",
+  "server.loginResetDone": "Password changed. Sign in with the new one.",
   "server.loginCandidateHint": "Taking an interview? Open the link from your invite email. No account needed.",
 
   "server.authBadCredentials": "That email and password don't match.",

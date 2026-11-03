@@ -77,6 +77,9 @@ export const settings = {
   "settings.admins.emailPlaceholder": "teammate@company.com",
   "settings.admins.linkNotice": "Send this link to {email}. It works once, for 7 days, and is shown only now.",
   "settings.admins.copyLink": "Copy link",
+  "settings.admins.passwordLink": "New password link",
+  "settings.admins.passwordNotice": "Send this link to the person to set a new password. It works once, for 24 hours, and is shown only now.",
+  "settings.admins.noAccountToReset": "This admin has no account yet. Send an invite link.",
   "settings.admins.badEmail": "Type a valid email.",
   "settings.admins.badDomain": "That email domain is not allowed in this workspace.",
 
@@ -86,6 +89,7 @@ export const settings = {
   "settings.audit.inviteCreated": "created admin invite link",
   "settings.audit.adminAdded": "added admin",
   "settings.audit.adminRemoved": "removed admin",
+  "settings.audit.passwordLinkCreated": "created a new password link",
 
   "kit.about": "About the kit",
   "kit.name": "Name",

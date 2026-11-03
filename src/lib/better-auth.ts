@@ -24,7 +24,7 @@ export const auth = betterAuth({
     provider: "sqlite",
     schema: { user: schema.authUser, session: schema.authSession, account: schema.authAccount, verification: schema.authVerification },
   }),
-  emailAndPassword: { enabled: true, minPasswordLength: 8, requireEmailVerification: mailConfigured() },
+  emailAndPassword: { enabled: true, minPasswordLength: 8, requireEmailVerification: mailConfigured(), revokeSessionsOnPasswordReset: true },
   emailVerification: mailConfigured()
     ? {
         sendOnSignUp: true,
